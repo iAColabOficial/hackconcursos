@@ -73,10 +73,21 @@ PROMPT;
     /**
      * Chat Mentor: Responde perguntas gerais sobre estudos, matérias ou o edital.
      */
-    public function chatEdital(string $pergunta, string $contextoEdital, array $historico = []): string {
-        $systemPrompt = "Você é o 'Mentor Hack', um especialista em concursos públicos com foco em aprovação tática. Seu objetivo é ajudar o aluno com qualquer dúvida sobre estudos, técnicas de memorização, explicação de matérias ou detalhes do edital. Seja motivador, preciso e profissional. Use o contexto do edital apenas se for relevante para a pergunta.";
+    public function chatEdital(string $pergunta, string $contextoEdital, array $historico = [], string $contextoAluno = ''): string {
+        $systemPrompt = "Você é o 'Mentor Hack', um especialista em concursos públicos com foco em aprovação tática e alto desempenho.
+Seu objetivo é ser o co-piloto do aluno, ajudando-o a dominar as matérias, entender o edital e manter a consistência.
 
-        $ctxPrompt = "CONTEXTO DO ALUNO (Concurso/Edital):\n" . mb_substr($contextoEdital, 0, 5000) . "\n\nPERGUNTA: {$pergunta}";
+DIRETRIZES:
+1. EXPLICAÇÃO: Explique conceitos complexos de forma simples e didática (use exemplos práticos).
+2. ESTRATÉGIA: Sugira técnicas de estudo (Pomodoro, Resumo Ativo, Ciclos) quando notar que o aluno está perdido.
+3. CONTEXTO: Use os dados do progresso do aluno para dar incentivos reais ou alertas de foco.
+4. PERSONALIDADE: Seja direto, motivador e profissional. Evite respostas genéricas; seja um 'hack' para a aprovação.
+
+Se o aluno perguntar sobre o edital, use os dados fornecidos. Se perguntar sobre matérias ou estratégia, use seu conhecimento vasto.";
+
+        $fullContext = "## STATUS ATUAL DO ALUNO ##\n{$contextoAluno}\n\n";
+        $fullContext .= "## CONTEÚDO DO EDITAL ##\n" . mb_substr($contextoEdital, 0, 5000) . "\n\n";
+        $fullContext .= "PERGUNTA DO ALUNO: {$pergunta}";
 
         $contents = [];
 
@@ -88,10 +99,10 @@ PROMPT;
             ];
         }
 
-        // Adicionar mensagem atual
+        // Adicionar mensagem atual com o sistema de prompt reforçado
         $contents[] = [
             'role'  => 'user',
-            'parts' => [['text' => $systemPrompt . "\n\n" . $ctxPrompt]]
+            'parts' => [['text' => $systemPrompt . "\n\n" . $fullContext]]
         ];
 
         return $this->chamarAPI('', $contents);

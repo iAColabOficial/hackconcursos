@@ -15,28 +15,41 @@ if (empty($pergunta) || !$editalId) {
 
 $db = getDB();
 
-// Verificar que o edital pertence ao usuário
-$eq = $db->prepare("SELECT id, conteudo_texto, nome_concurso FROM editais WHERE id=? AND usuario_id=?");
-$eq->execute([$editalId, $uid]);
-$edital = $eq->fetch();
-if (!$edital) { echo json_encode(['ok'=>false,'msg'=>'Edital não encontrado.']); exit; }
+// Buscar resumo do status do aluno via StudyPlanner
+require_once __DIR__ . '/../classes/StudyPlanner.php';
+$planner = new StudyPlanner();
+$contextoAluno = $planner->getResumoStatus($uid);
+
+// Verificar edital
+$edital = null;
+if ($editalId > 0) {
+    $eq = $db->prepare("SELECT id, conteudo_texto, nome_concurso FROM editais WHERE id=? AND usuario_id=?");
+    $eq->execute([$editalId, $uid]);
+    $edital = $eq->fetch();
+}
 
 // Buscar histórico recente (últimas 6 mensagens)
-$hq = $db->prepare("SELECT papel, mensagem FROM mensagens_chat WHERE usuario_id=? AND edital_id=? ORDER BY criado_em DESC LIMIT 6");
-$hq->execute([$uid, $editalId]);
-$historico = array_reverse($hq->fetchAll());
+$historico = [];
+if ($editalId > 0) {
+    $hq = $db->prepare("SELECT papel, mensagem FROM mensagens_chat WHERE usuario_id=? AND edital_id=? ORDER BY criado_em DESC LIMIT 6");
+    $hq->execute([$uid, $editalId]);
+    $historico = array_reverse($hq->fetchAll());
 
-// Salvar pergunta
-$db->prepare("INSERT INTO mensagens_chat (usuario_id, edital_id, papel, mensagem) VALUES (?,?,?,?)")
-   ->execute([$uid, $editalId, 'user', $pergunta]);
+    // Salvar pergunta
+    $db->prepare("INSERT INTO mensagens_chat (usuario_id, edital_id, papel, mensagem) VALUES (?,?,?,?)")
+       ->execute([$uid, $editalId, 'user', $pergunta]);
+}
 
 try {
     $gemini   = new GeminiService();
-    $resposta = $gemini->chatEdital($pergunta, $edital['conteudo_texto'] ?? '', $historico);
+    // Passar o contexto do edital (se houver) e o contexto do aluno (sempre)
+    $resposta = $gemini->chatEdital($pergunta, $edital['conteudo_texto'] ?? 'Nenhum edital selecionado no momento.', $historico, $contextoAluno);
 
     // Salvar resposta
-    $db->prepare("INSERT INTO mensagens_chat (usuario_id, edital_id, papel, mensagem) VALUES (?,?,?,?)")
-       ->execute([$uid, $editalId, 'model', $resposta]);
+    if ($editalId > 0) {
+        $db->prepare("INSERT INTO mensagens_chat (usuario_id, edital_id, papel, mensagem) VALUES (?,?,?,?)")
+           ->execute([$uid, $editalId, 'model', $resposta]);
+    }
 
     echo json_encode(['ok'=>true, 'resposta'=>$resposta]);
 } catch (\Exception $e) {

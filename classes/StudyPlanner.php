@@ -316,4 +316,51 @@ class StudyPlanner {
             'horas_estudadas'   => round(($row['minutos_estudados'] ?? 0) / 60, 1),
         ];
     }
+
+    /**
+     * Gera um resumo textual do status do aluno para ser usado pela IA.
+     */
+    public function getResumoStatus(int $usuarioId): string {
+        $progresso = $this->getProgressoGeral($usuarioId);
+        
+        // Buscar o cargo/concurso atual
+        $st = $this->db->prepare("
+            SELECT c.nome as cargo, e.nome_concurso
+            FROM planos_estudo p
+            JOIN cargos c ON c.id = p.cargo_id
+            JOIN editais e ON e.id = c.edital_id
+            WHERE p.usuario_id = ? AND p.ativo = 1
+            LIMIT 1
+        ");
+        $st->execute([$usuarioId]);
+        $info = $st->fetch();
+        
+        $concurso = $info['nome_concurso'] ?? 'Não definido';
+        $cargo    = $info['cargo'] ?? 'Não definido';
+
+        // Buscar nomes das disciplinas com maior dificuldade
+        $std = $this->db->prepare("
+            SELECT d.nome, dd.dificuldade 
+            FROM diagnostico_disciplinas dd
+            JOIN disciplinas d ON d.id = dd.disciplina_id
+            JOIN diagnosticos diag ON diag.id = dd.diagnostico_id
+            WHERE diag.usuario_id = ?
+            ORDER BY dd.dificuldade DESC
+            LIMIT 3
+        ");
+        $std->execute([$usuarioId]);
+        $dificuldades = $std->fetchAll();
+        $difStr = "";
+        foreach($dificuldades as $d) {
+            $difStr .= "- {$d['nome']} (Nível de dificuldade: {$d['dificuldade']}/10)\n";
+        }
+
+        $resumo = "NOME DO CONCURSO: $concurso\n";
+        $resumo .= "CARGO: $cargo\n";
+        $resumo .= "PROGRESSO TOTAL: {$progresso['percentual']}%\n";
+        $resumo .= "HORAS ESTUDADAS: {$progresso['horas_estudadas']}h\n";
+        $resumo .= "DISCIPLINAS MAIS DIFÍCEIS PARA O ALUNO:\n" . ($difStr ?: "Nenhum diagnóstico realizado ainda.\n");
+
+        return $resumo;
+    }
 }

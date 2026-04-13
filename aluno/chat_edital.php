@@ -33,13 +33,10 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <?php if (!$edital): ?>
-    <div class="card-glass" style="text-align:center;padding:3rem;">
-      <div style="font-size:3rem;margin-bottom:1rem;">📄</div>
-      <h3>Nenhum edital analisado</h3>
-      <p style="color:var(--text-secondary);margin:0.75rem 0 1.5rem;">Você precisa enviar e processar um edital antes de usar o Tira-Dúvidas.</p>
-      <a href="upload_edital.php" class="btn-hc btn-primary-hc"><i class="bi bi-cloud-upload"></i> Enviar Edital</a>
+    <div class="alert alert-info-hc mb-4">
+      <i class="bi bi-info-circle"></i> Você está no modo <strong>Mentor Geral</strong>. Envie um edital em <a href="upload_edital.php" class="text-white fw-700">Meus Concursos</a> para receber orientações específicas sobre um concurso.
     </div>
-    <?php else: ?>
+    <?php endif; ?>
 
     <div class="grid-2" style="grid-template-columns:1fr 280px;gap:1.5rem;align-items:start;">
 
@@ -78,7 +75,13 @@ require_once __DIR__ . '/../includes/header.php';
         <!-- Sugestões rápidas -->
         <div id="sugestoes" style="padding:0.5rem 1rem;border-top:1px solid var(--border-glass);display:flex;gap:0.5rem;flex-wrap:wrap;">
           <?php
-          $sugestoes = ['Qual a data da prova?','Quais documentos preciso levar?','Qual o critério de desempate?','Preciso de nível superior?'];
+          $sugestoes = [
+            'Como posso memorizar melhor?',
+            'O que é a técnica Pomodoro?',
+            'Estou desmotivado, o que fazer?',
+            'Qual o meu progresso hoje?',
+            'Me faça 3 questões sobre o edital'
+          ];
           foreach ($sugestoes as $s):
           ?>
           <button onclick="enviarSugestao('<?= htmlspecialchars($s, ENT_QUOTES) ?>')" class="btn-hc btn-ghost" style="font-size:0.75rem;padding:0.3rem 0.65rem;border-radius:var(--radius-full);">
@@ -89,7 +92,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <!-- Input -->
         <div class="chat-input-area">
-          <textarea id="chat-input" class="form-control-hc" rows="1" placeholder="Tire sua dúvida sobre matérias ou o edital..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviar();}"></textarea>
+          <textarea id="chat-input" class="form-control-hc" rows="1" placeholder="Dívidas de matérias, estratégia ou edital..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviar();}"></textarea>
           <button class="btn-hc btn-ai" onclick="enviar()" id="btn-enviar">
             Enviar
           </button>
@@ -106,30 +109,24 @@ require_once __DIR__ . '/../includes/header.php';
               <div class="form-label">Concurso</div>
               <div class="fw-700 text-blue" style="font-size:0.9rem;"><?= sanitize($edital['nome_concurso']) ?></div>
             </div>
-            <?php if ($edital['banca']): ?>
-            <div><div class="form-label">Banca</div><div style="font-size:0.88rem;"><?= sanitize($edital['banca']) ?></div></div>
-            <?php endif; ?>
             <?php if ($edital['data_prova']): ?>
             <div><div class="form-label">Data da Prova</div>
               <div class="fw-700 text-neon"><?= date('d/m/Y', strtotime($edital['data_prova'])) ?></div>
             </div>
             <?php endif; ?>
-            <a href="upload_edital.php" class="btn-hc btn-ghost btn-sm w-100">Trocar Edital</a>
           </div>
         </div>
 
-        <!-- Perguntas sugeridas por categoria -->
+        <!-- Sugestões de Estratégia -->
         <div class="card-glass">
-          <div class="card-header-hc"><h5>💡 Pergunte sobre</h5></div>
+          <div class="card-header-hc"><h5>🚀 Estratégia Hack</h5></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:0.4rem;">
             <?php
             $cats = [
-              ['📅','Datas e prazos', 'Quais são as datas importantes do concurso?'],
-              ['📋','Requisitos','Quais são os requisitos para o cargo?'],
-              ['📦','Documentação','Quais documentos são exigidos na inscrição?'],
-              ['🏆','Pontuação','Como é calculada a nota final?'],
-              ['♿','Vagas especiais','Há vagas para PcD ou negros?'],
-              ['🖊️','Prova','Quantas questões tem a prova?'],
+              ['🧠','Técnicas de Estudo', 'Quais as melhores técnicas para estudar exatas?'],
+              ['⚖️','Prioridades IA','Com base no meu progresso, o que devo priorizar?'],
+              ['⏱️','Gestão de Tempo','Como organizar meu tempo se só tenho 2 horas?'],
+              ['📊','Análise de Edital','Explique os critérios de desempate deste edital.'],
             ];
             foreach ($cats as [$ico,$cat,$q]):
             ?>
@@ -144,7 +141,6 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
       </div>
     </div>
-    <?php endif; ?>
   </main>
 </div>
 
