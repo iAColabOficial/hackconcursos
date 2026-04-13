@@ -73,21 +73,22 @@ PROMPT;
     /**
      * Chat Mentor: Responde perguntas gerais sobre estudos, matérias ou o edital.
      */
-    public function chatEdital(string $pergunta, string $contextoEdital, array $historico = [], string $contextoAluno = ''): string {
-        $systemPrompt = "Você é o 'Mentor Hack', um especialista em concursos públicos com foco em aprovação tática e alto desempenho.
-Seu objetivo é ser o co-piloto do aluno, ajudando-o a dominar as matérias, entender o edital e manter a consistência.
+    public function chatEdital(string $pergunta, string $contextoEdital, array $historico = [], string $contextoAluno = '', string $nomeConcurso = '', string $banca = ''): string {
+        $systemPrompt = "Você é o 'Mentor Hack', um especialista em concursos públicos de alto desempenho.
+Seu objetivo é ser o co-piloto do aluno, ajudando-o a dominar as matérias e o edital.
 
 DIRETRIZES:
-1. EXPLICAÇÃO: Explique conceitos complexos de forma simples e didática (use exemplos práticos).
-2. ESTRATÉGIA: Sugira técnicas de estudo (Pomodoro, Resumo Ativo, Ciclos) quando notar que o aluno está perdido.
-3. CONTEXTO: Use os dados do progresso do aluno para dar incentivos reais ou alertas de foco.
-4. PERSONALIDADE: Seja direto, motivador e profissional. Evite respostas genéricas; seja um 'hack' para a aprovação.
+1. CONTEXTO: Você tem acesso aos dados do edital ativo e do aluno abaixo. Use-os para responder com precisão.
+2. PERSONALIDADE: Seja direto, motivador e estratégico.
+3. FORMATAÇÃO: Sempre que responder, termine ou decore sua resposta com uma linha de muitos asteriscos (********************) para manter o estilo do Mentor Hack.
+4. INSTRUÇÃO: Se o aluno perguntar sobre o edital, você JÁ TEM os dados. Nunca diga que não tem o edital se ele estiver listado no contexto abaixo.";
 
-Se o aluno perguntar sobre o edital, use os dados fornecidos. Se perguntar sobre matérias ou estratégia, use seu conhecimento vasto.";
-
-        $fullContext = "## STATUS ATUAL DO ALUNO ##\n{$contextoAluno}\n\n";
-        $fullContext .= "## CONTEÚDO DO EDITAL ##\n" . mb_substr($contextoEdital, 0, 5000) . "\n\n";
-        $fullContext .= "PERGUNTA DO ALUNO: {$pergunta}";
+        $fullContext = "### PAINEL DE CONTEXTO ATIVO ###\n";
+        $fullContext .= "CONCURSO: " . ($nomeConcurso ?: 'Não identificado') . "\n";
+        $fullContext .= "BANCA: " . ($banca ?: 'Não identificado') . "\n\n";
+        $fullContext .= "## STATUS DO ALUNO ##\n{$contextoAluno}\n\n";
+        $fullContext .= "## FRAGMENTO DO EDITAL ##\n" . mb_substr($contextoEdital, 0, 10000) . "\n\n";
+        $fullContext .= "PERGUNTA ATUAL: {$pergunta}";
 
         $contents = [];
 
@@ -99,13 +100,13 @@ Se o aluno perguntar sobre o edital, use os dados fornecidos. Se perguntar sobre
             ];
         }
 
-        // Adicionar mensagem atual com o sistema de prompt reforçado
+        // Adicionar mensagem atual
         $contents[] = [
             'role'  => 'user',
-            'parts' => [['text' => $systemPrompt . "\n\n" . $fullContext]]
+            'parts' => [['text' => $fullContext]]
         ];
 
-        return $this->chamarAPI('', $contents);
+        return $this->chamarAPI('', $contents, $systemPrompt);
     }
 
     /**
@@ -164,7 +165,7 @@ PROMPT;
     /**
      * Chama a API do Gemini (geração de texto simples ou com histórico).
      */
-    private function chamarAPI(string $prompt = '', array $contents = []): string {
+    private function chamarAPI(string $prompt = '', array $contents = [], string $systemInstruction = ''): string {
         if (empty($this->apiKey) || $this->apiKey === 'SUA_CHAVE_AQUI') {
             throw new \Exception('API Key do Gemini não configurada. Acesse config/config.php.');
         }
@@ -176,13 +177,22 @@ PROMPT;
             $contents = [['role' => 'user', 'parts' => [['text' => $prompt]]]];
         }
 
-        $body = json_encode([
+        $payload = [
             'contents'         => $contents,
             'generationConfig' => [
                 'temperature'     => 0.3,
                 'maxOutputTokens' => 8192,
             ]
-        ]);
+        ];
+
+        // Adicionar instrução de sistema se fornecida
+        if (!empty($systemInstruction)) {
+            $payload['system_instruction'] = [
+                'parts' => [['text' => $systemInstruction]]
+            ];
+        }
+
+        $body = json_encode($payload);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -193,7 +203,7 @@ PROMPT;
                 'Content-Type: application/json',
                 'x-goog-api-key: ' . $this->apiKey // Autenticação via Header
             ],
-            CURLOPT_TIMEOUT        => 120, // Aumentado para 120s para gerar mais questões com calma
+            CURLOPT_TIMEOUT        => 120,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
 
@@ -210,7 +220,7 @@ PROMPT;
 
         if ($httpCode !== 200) {
             $msg = $json['error']['message'] ?? 'Erro desconhecido na API.';
-            throw new \Exception("Erro API Gemini ({$httpCode}): {$msg} [URL: {$url}] [Modelo: {$this->model}]");
+            throw new \Exception("Erro API Gemini ({$httpCode}): {$msg}");
         }
 
         return $json['candidates'][0]['content']['parts'][0]['text'] ?? '';

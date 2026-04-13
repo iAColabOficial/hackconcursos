@@ -23,7 +23,7 @@ $contextoAluno = $planner->getResumoStatus($uid);
 // Verificar edital
 $edital = null;
 if ($editalId > 0) {
-    $eq = $db->prepare("SELECT id, conteudo_texto, nome_concurso FROM editais WHERE id=? AND usuario_id=?");
+    $eq = $db->prepare("SELECT id, conteudo_texto, nome_concurso, banca FROM editais WHERE id=? AND usuario_id=?");
     $eq->execute([$editalId, $uid]);
     $edital = $eq->fetch();
 }
@@ -42,8 +42,15 @@ if ($editalId > 0) {
 
 try {
     $gemini   = new GeminiService();
-    // Passar o contexto do edital (se houver) e o contexto do aluno (sempre)
-    $resposta = $gemini->chatEdital($pergunta, $edital['conteudo_texto'] ?? 'Nenhum edital selecionado no momento.', $historico, $contextoAluno);
+    // Passar o contexto do edital, o resumo do aluno e agora explicitamente NOME e BANCA
+    $resposta = $gemini->chatEdital(
+        $pergunta, 
+        $edital['conteudo_texto'] ?? 'Nenhum edital selecionado no momento.', 
+        $historico, 
+        $contextoAluno,
+        $edital['nome_concurso'] ?? '',
+        $edital['banca'] ?? ''
+    );
 
     // Salvar resposta
     if ($editalId > 0) {
