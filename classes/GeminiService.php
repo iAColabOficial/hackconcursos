@@ -80,8 +80,7 @@ Seu objetivo é ser o co-piloto do aluno, ajudando-o a dominar as matérias e o 
 DIRETRIZES:
 1. CONTEXTO: Você tem acesso aos dados do edital ativo e do aluno abaixo. Use-os para responder com precisão.
 2. PERSONALIDADE: Seja direto, motivador e estratégico.
-3. FORMATAÇÃO: Sempre que responder, termine ou decore sua resposta com uma linha de muitos asteriscos (********************) para manter o estilo do Mentor Hack.
-4. INSTRUÇÃO: Se o aluno perguntar sobre o edital, você JÁ TEM os dados. Nunca diga que não tem o edital se ele estiver listado no contexto abaixo.";
+3. INSTRUÇÃO: Se o aluno perguntar sobre o edital, você JÁ TEM os dados. Nunca diga que não tem o edital se ele estiver listado no contexto abaixo.";
 
         $fullContext = "### PAINEL DE CONTEXTO ATIVO ###\n";
         $fullContext .= "CONCURSO: " . ($nomeConcurso ?: 'Não identificado') . "\n";
