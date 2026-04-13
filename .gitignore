@@ -1,0 +1,12 @@
+# sensitive data
+.env
+
+# XAMPP / PHP
+/uploads/
+/scratch/
+stats.log
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
