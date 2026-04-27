@@ -124,7 +124,7 @@ $page_desc  = 'Acesse sua conta HackConcursos e continue sua jornada rumo à apr
 <div class="login-page">
 
   <!-- Botão Voltar -->
-  <a href="index_new.php" style="position: absolute; top: 2rem; left: 2rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; z-index: 10; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.3s;" onmouseover="this.style.color='var(--neon-green)'" onmouseout="this.style.color='var(--text-secondary)'">
+  <a href="index.php" style="position: absolute; top: 2rem; left: 2rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; z-index: 10; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.3s;" onmouseover="this.style.color='var(--neon-green)'" onmouseout="this.style.color='var(--text-secondary)'">
     <i class="bi bi-arrow-left"></i> Voltar para o Início
   </a>
 

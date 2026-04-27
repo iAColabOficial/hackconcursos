@@ -5,27 +5,26 @@ exigirLogin('../login.php');
 $db = getDB();
 $usuario_id = $_SESSION['usuario_id'];
 
-// Buscar perfil e edital
-$perfil = $db->prepare("SELECT * FROM perfis_usuario WHERE usuario_id = ?");
-$perfil->execute([$usuario_id]);
-$dados_perfil = $perfil->fetch();
+// Buscar perfil
+$perfilQ = $db->prepare("SELECT * FROM perfis_usuario WHERE usuario_id = ?");
+$perfilQ->execute([$usuario_id]);
+$dados_perfil = $perfilQ->fetch();
 
-if (!$dados_perfil || !$dados_perfil['biblioteca_edital_id']) {
-    redirect('biblioteca.php');
+$biblioteca_id = $dados_perfil['biblioteca_edital_id'] ?? 0;
+$dados_edital = null;
+
+if ($biblioteca_id) {
+    $editalQ = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
+    $editalQ->execute([$biblioteca_id]);
+    $dados_edital = $editalQ->fetch();
 }
 
-$biblioteca_id = $dados_perfil['biblioteca_edital_id'];
+// Heurística de Diagnóstico
+$perfil_estudo = $_SESSION['perfil_estudo'] ?? 'iniciante';
+$score_atual = $perfil_estudo === 'avancado' ? 65 : ($perfil_estudo === 'intermediario' ? 45 : 25);
+$meses_estimados = $perfil_estudo === 'avancado' ? 4 : ($perfil_estudo === 'intermediario' ? 8 : 12);
 
-$edital = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
-$edital->execute([$biblioteca_id]);
-$dados_edital = $edital->fetch();
-
-// Heurística de Diagnóstico (Simulada para o MVP)
-// Em produção, isso seria calculado com base nos níveis marcados
-$score_atual = rand(30, 45); 
-$meses_estimados = rand(6, 12);
-
-$page_title = 'Seu Raio-X de Aprovação - HackConcursos';
+$page_title = 'Resultado da Personalização - HackConcursos';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -33,19 +32,40 @@ require_once __DIR__ . '/../includes/header.php';
   <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
   <main class="main-content">
 
-    <div class="page-header text-center">
+    <?php if (!$dados_edital): ?>
+    <!-- RESULTADO PERFIL GERAL -->
+    <div class="animate__animated animate__zoomIn text-center" style="max-width:800px; margin: 4rem auto;">
+        <div style="font-size:5rem; margin-bottom:1.5rem;">🎯</div>
+        <h2 style="font-weight:900; font-size:2.5rem; margin-bottom:1rem;">Perfil <span class="text-neon">Hakeado</span> com Sucesso!</h2>
+        <p style="font-size:1.2rem; color:var(--text-secondary); margin-bottom:3rem;">
+            Seu perfil de estudo <strong><?= ucfirst($perfil_estudo) ?></strong> foi registrado. 
+            A IA já sabe que você terá <strong><?= $dados_perfil['horas_dia'] ?? 3 ?>h</strong> por dia para buscar sua vaga.
+        </p>
+
+        <div class="card-glass" style="padding:3rem; border: 1px solid var(--border-neon); background: rgba(34,197,94,0.02);">
+            <h4 style="font-weight:800; margin-bottom:1.5rem;">PRÓXIMO PASSO: ESCOLHER SEU ALVO</h4>
+            <p style="color:var(--text-muted); margin-bottom:2rem;">Para que possamos gerar seu cronograma tático, precisamos saber para qual concurso você está estudando.</p>
+            <a href="biblioteca.php" class="btn-hc btn-neon btn-lg shadow-neon" style="padding: 1.2rem 4rem;">
+                ESCOLHER MEU CONCURSO <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <?php else: ?>
+    <!-- RESULTADO RAIO-X ESPECÍFICO -->
+    <div class="page-header text-center animate__animated animate__fadeIn">
       <h2>🔍 Seu Raio-X Estratégico</h2>
       <p>Análise concluída para: <strong class="text-neon"><?= sanitize($dados_edital['nome_concurso']) ?></strong></p>
     </div>
 
-    <div class="grid-3 mb-lg">
+    <div class="grid-3 mb-lg animate__animated animate__fadeInUp">
         <!-- Card: Índice de Aprovação -->
         <div class="card-glass text-center" style="padding:2rem;">
             <div class="kpi-label">Seu IAp Atual</div>
-            <div class="kpi-value text-danger" style="font-size:4rem;"><?= $score_atual ?>%</div>
+            <div class="kpi-value <?= $score_atual < 50 ? 'text-danger' : 'text-warning' ?>" style="font-size:4rem;"><?= $score_atual ?>%</div>
             <p class="text-muted" style="font-size:0.8rem;">Chance estimada de posse hoje</p>
             <div class="progress-hc mt-sm">
-                <div class="progress-bar-fill" style="width: <?= $score_atual ?>%; background: var(--danger);"></div>
+                <div class="progress-bar-fill" style="width: <?= $score_atual ?>%; background: <?= $score_atual < 50 ? 'var(--danger)' : 'var(--warning)' ?>;"></div>
             </div>
         </div>
 
@@ -60,8 +80,10 @@ require_once __DIR__ . '/../includes/header.php';
         <!-- Card: Nível de Competição -->
         <div class="card-glass text-center" style="padding:2rem;">
             <div class="kpi-label">Status de Competição</div>
-            <div class="kpi-value text-warning" style="font-size:2.5rem; margin-top:1rem;">ALERTA</div>
-            <p class="text-muted" style="font-size:0.8rem; margin-top:0.5rem;">Sua estratégia atual tem falhas críticas que podem te custar a vaga.</p>
+            <div class="kpi-value text-warning" style="font-size:2.5rem; margin-top:1rem;">
+                <?= $score_atual < 40 ? 'ALERTA' : 'EVOLUINDO' ?>
+            </div>
+            <p class="text-muted" style="font-size:0.8rem; margin-top:0.5rem;">Sua estratégia atual precisa de ajustes para bater a concorrência.</p>
             <div style="font-size:2rem; margin-top:1rem;">⚠️</div>
         </div>
     </div>
@@ -117,6 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="text-center mt-lg">
         <a href="../controllers/gerar_plano.php" class="text-muted" style="font-size:0.9rem;">Continuar com o plano gratuito limitado</a>
     </div>
+    <?php endif; ?>
 
   </main>
 </div>

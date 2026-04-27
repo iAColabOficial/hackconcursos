@@ -9,6 +9,9 @@ require_once __DIR__ . '/../config/config.php';
 class StudyPlanner {
 
     private PDO $db;
+    private $limiteFraco = 60; // Abaixo de 60% é considerado fraqueza
+    private $limiteDominado = 90; // Acima de 90% pode pular ou espaçar mais
+    private $usuarioId; // Adicionado para rastreio
 
     public function __construct() {
         $this->db = getDB();
@@ -16,70 +19,291 @@ class StudyPlanner {
 
     /**
      * Gera o plano de estudos completo para um usuário/cargo/diagnóstico.
-     * Cria tarefas na tabela tarefas_estudo e revisões automáticas.
-     *
-     * @param int $usuarioId
-     * @param int $cargoId
-     * @param int $diagnosticoId
-     * @return int ID do plano criado
+     * Agora focado em MISSÕES por TÓPICO.
      */
     public function gerarPlano(int $usuarioId, int $cargoId, int $diagnosticoId): int {
-        // 1. Buscar dados do diagnóstico
         $diag = $this->getDiagnostico($diagnosticoId);
         if (!$diag) throw new \RuntimeException('Diagnóstico não encontrado.');
 
         $horasDia   = (float) $diag['horas_disponivel'];
-        $diasEstudo = explode(',', $diag['dias_estudo']); // ex: [1,2,3,4,5]
+        $diasEstudo = explode(',', $diag['dias_estudo']);
         $diaFolga   = (int) $diag['dia_folga'];
 
-        // 2. Buscar disciplinas com seus pesos e nível do aluno
+        // 1. Buscar disciplinas e SEUS TÓPICOS
         $disciplinas = $this->getDisciplinasComDificuldade($cargoId, $diagnosticoId);
-        if (empty($disciplinas)) throw new \RuntimeException('Nenhuma disciplina encontrada para este cargo.');
+        if (empty($disciplinas)) throw new \RuntimeException('Nenhuma disciplina encontrada.');
 
-        // 3. Buscar data da prova (para calcular urgência)
         $dataProva = $this->getDataProva($cargoId);
         $dataInicio = new \DateTime();
         $urgenciaMult = 1.0;
 
         if ($dataProva) {
-            $dataFim = $dataProva;
-            $diasRestantes = $dataInicio->diff($dataFim)->days;
-            
-            // Se a prova for em menos de 45 dias, entramos em "Modo Reta Final"
-            if ($diasRestantes > 0 && $diasRestantes < 45) {
-                $urgenciaMult = 1.3;
-            }
+            $diasRestantes = $dataInicio->diff($dataProva)->days;
+            if ($diasRestantes > 0 && $diasRestantes < 45) $urgenciaMult = 1.3;
             $diasTotais = max(15, $diasRestantes);
         } else {
-            $dataFim = (new \DateTime('+6 months'));
             $diasTotais = 180;
         }
 
-        // 4. Calcular horas por disciplina
+        // 2. Calcular distribuição de carga horária
         $horasPonderadasDia = $horasDia * (count($diasEstudo) / 7);
         $horasTotais = $horasPonderadasDia * $diasTotais;
         $disciplinas = $this->calcularHoras($disciplinas, $horasTotais, $urgenciaMult);
 
-        // 5. Criar o plano no banco
+        // 3. Criar o plano
         $planoId = $this->criarPlano($usuarioId, $cargoId, $diagnosticoId, $dataInicio->format('Y-m-d'));
 
-        // 6. Gerar as tarefas distribuídas nos dias de estudo
-        $this->gerarTarefas($planoId, $disciplinas, $diasEstudo, $horasDia, $dataInicio);
+        // 4. Gerar as MISSÕES (Tópico a Tópico)
+        $this->gerarMissoes($planoId, $disciplinas, $diasEstudo, $horasDia, $dataInicio);
 
         return $planoId;
+    }
+
+    /**
+     * Algoritmo de Geração de Missões Estruturadas
+     */
+    private function gerarMissoes(int $planoId, array $disciplinas, array $diasEstudo, float $horasDia, \DateTime $inicio): void {
+        $minutosDisponiveisDia = $horasDia * 60;
+        $data = clone $inicio;
+        $diaContador = 0;
+        $maxDias = 240; // Limite de 8 meses de planejamento
+
+        // Preparar pool de tópicos por disciplina
+        $poolMissoes = [];
+        foreach ($disciplinas as $disc) {
+            $topicos = $this->getTopicosPorDisciplina((int)$disc['id']);
+            
+            // Se não houver tópicos cadastrados, criamos um tópico genérico para não travar o plano
+            if (empty($topicos)) {
+                $topicos = [['id' => null, 'nome' => 'Conteúdo Geral', 'cobrado_frequentemente' => 0]];
+            }
+
+            // Calcular quantas missões (sessões) essa disciplina terá
+            $horasPorMissao = 1.5;
+            $totalMissoes = max(1, ceil($disc['horas_alocadas'] / $horasPorMissao));
+            
+            $missoesDisc = [];
+            for ($i = 0; $i < $totalMissoes; $i++) {
+                // Seleciona tópico (em loop se houver menos tópicos que sessões)
+                $topico = $topicos[$i % count($topicos)];
+                
+                // Define Relevância
+                $relevancia = $topico['cobrado_frequentemente'] ? 'alta' : 'media';
+                
+                // Estrutura a Instrução da Missão (Ação Clara)
+                $instrucao = $this->gerarInstrucaoMissao($disc['nivel'], $relevancia);
+                
+                // Define Resultado Esperado
+                $resultado = $this->gerarResultadoEsperado($disc['nivel']);
+
+                $missoesDisc[] = [
+                    'disciplina_id' => $disc['id'],
+                    'topico_id'     => $topico['id'],
+                    'titulo'        => $topico['nome'],
+                    'tipo'          => 'estudo',
+                    'duracao'       => (int)($horasPorMissao * 60),
+                    'relevancia'    => $relevancia,
+                    'instrucao'     => $instrucao,
+                    'resultado'     => $resultado
+                ];
+            }
+            $poolMissoes[] = $missoesDisc;
+        }
+
+        // Intercalação Round-Robin para manter o ciclo de estudos dinâmico
+        $cronogramaFinal = [];
+        $continua = true;
+        $idx = 0;
+        while ($continua) {
+            $continua = false;
+            foreach ($poolMissoes as &$fila) {
+                if (!empty($fila)) {
+                    $cronogramaFinal[] = array_shift($fila);
+                    $continua = true;
+                }
+            }
+        }
+
+        // Inserção no Banco
+        $stmt = $this->db->prepare("
+            INSERT INTO tarefas_estudo 
+            (plano_id, disciplina_id, topico_id, titulo, tipo, data_prevista, duracao_minutos, relevancia, instrucao_missao, resultado_esperado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        $missaoIdx = 0;
+        $totalMissoes = count($cronogramaFinal);
+
+        while ($missaoIdx < $totalMissoes && $diaContador < $maxDias) {
+            $diaSemana = $data->format('N');
+            if (in_array((string)$diaSemana, $diasEstudo)) {
+                $minDia = $minutosDisponiveisDia;
+                
+                while ($minDia >= 45 && $missaoIdx < $totalMissoes) {
+                    $m = $cronogramaFinal[$missaoIdx];
+                    $dur = min($m['duracao'], $minDia);
+
+                    $stmt->execute([
+                        $planoId,
+                        $m['disciplina_id'],
+                        $m['topico_id'],
+                        $m['titulo'],
+                        $m['tipo'],
+                        $data->format('Y-m-d'),
+                        $dur,
+                        $m['relevancia'],
+                        $m['instrucao'],
+                        $m['resultado']
+                    ]);
+                    
+                    $tarefaId = (int)$this->db->lastInsertId();
+                    
+                    // Agenda Revisões Estratégicas (baseadas no tópico)
+                    $this->agendarRevisoesMissao($planoId, $m, $data, $tarefaId);
+
+                    $minDia -= $dur;
+                    $missaoIdx++;
+                }
+            }
+            $data->modify('+1 day');
+            $diaContador++;
+        }
+    }
+
+    /**
+     * PROCESSAMENTO REATIVO (Lógica Pura - Sem IA)
+     * Analisa o último resultado e decide se injeta reforço.
+     */
+    public function processarDesempenhoMissao(int $tarefaId): array {
+        $st = $this->db->prepare("SELECT * FROM tarefas_estudo WHERE id = ?");
+        $st->execute([$tarefaId]);
+        $t = $st->fetch();
+
+        if (!$t || !$t['questoes_total']) return ['status' => 'ok'];
+
+        $percentual = ($t['questoes_acerto'] / $t['questoes_total']) * 100;
+
+        // Se desempenho foi baixo, injeta REFORÇO AUTOMÁTICO
+        if ($percentual < $this->limiteFraco) {
+            $this->agendarReforcoImediato($t);
+            $frequencia = $this->getFrequenciaErroTopico($t['usuario_id'], $t['topico_id']);
+            
+            $this->registrarEvento($t['usuario_id'], 'alerta_erro_exibido', json_encode(['tarefa_id' => $tarefaId, 'frequencia' => $frequencia]));
+
+            return [
+                'status' => 'alerta',
+                'msg' => 'Desempenho abaixo da meta.',
+                'frequencia' => $frequencia,
+                'sugerir_ia' => true
+            ];
+        }
+
+        return ['status' => 'sucesso', 'msg' => 'Excelente! Tópico dominado.', 'sugerir_ia' => false];
+    }
+
+    private function getFrequenciaErroTopico(int $uid, int $topicoId): int {
+        $st = $this->db->prepare("
+            SELECT COUNT(*) FROM tarefas_estudo t
+            JOIN planos_estudo p ON p.id = t.plano_id
+            WHERE p.usuario_id = ? AND t.topico_id = ? AND (t.questoes_acerto / t.questoes_total) < 0.6
+        ");
+        $st->execute([$uid, $topicoId]);
+        return (int)$st->fetchColumn();
+    }
+
+    private function registrarEvento(int $uid, string $evento, string $meta): void {
+        $st = $this->db->prepare("INSERT INTO eventos_usuario (usuario_id, evento, metadata) VALUES (?, ?, ?)");
+        $st->execute([$uid, $evento, $meta]);
+    }
+
+    /**
+     * Agenda uma missão de reforço para o próximo dia disponível
+     */
+    private function agendarReforcoImediato(array $tarefaOriginal): void {
+        $st = $this->db->prepare("
+            INSERT INTO tarefas_estudo 
+            (plano_id, disciplina_id, topico_id, titulo, tipo, data_prevista, duracao_minutos, relevancia, instrucao_missao, resultado_esperado)
+            VALUES (?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL 1 DAY), ?, ?, ?, ?)
+        ");
+        
+        $instrucao = "MISSÃO DE REFORÇO: Seu desempenho anterior foi baixo. Foque em revisar a base teórica e refazer as questões que errou.";
+        
+        $st->execute([
+            $tarefaOriginal['plano_id'],
+            $tarefaOriginal['disciplina_id'],
+            $tarefaOriginal['topico_id'],
+            "Reforço: " . str_replace('Reforço: ', '', $tarefaOriginal['titulo']),
+            'estudo',
+            45, // Sessão mais curta de foco
+            'alta', // Reforço é sempre prioridade alta
+            $instrucao,
+            "75% de acerto (Recuperação)"
+        ]);
+    }
+
+    /**
+     * Gera uma instrução acionável baseada no nível do aluno
+     */
+    private function gerarInstrucaoMissao(string $nivel, string $relevancia): string {
+        if ($nivel === 'iniciante') {
+            return "FOCO EM TEORIA: Leia o material base e faça um mapa mental. Finalize com 5 questões de fixação.";
+        } elseif ($nivel === 'intermediario') {
+            return "ESTUDO ATIVO: Revise seus pontos de dúvida e realize 15 questões. Se errar mais de 3, volte ao PDF.";
+        } else { // avançado
+            return "MODO GUERRA: Realize 30 questões direto. Foque apenas nas justificativas dos erros e súmulas relacionadas.";
+        }
+    }
+
+    /**
+     * Define o critério de sucesso da missão
+     */
+    private function gerarResultadoEsperado(string $nivel): string {
+        $metas = ['iniciante' => '60% de acerto', 'intermediario' => '75% de acerto', 'avancado' => '90% de acerto'];
+        return $metas[$nivel] ?? '70% de acerto';
+    }
+
+    private function getTopicosPorDisciplina(int $disciplinaId): array {
+        $st = $this->db->prepare("SELECT id, nome, cobrado_frequentemente FROM topicos_edital WHERE disciplina_id = ? ORDER BY cobrado_frequentemente DESC, id ASC");
+        $st->execute([$disciplinaId]);
+        return $st->fetchAll();
+    }
+
+    private function agendarRevisoesMissao(int $planoId, array $missao, \DateTime $dataOrigem, int $origemId): void {
+        $ciclos = [1 => 'revisao_24h', 7 => 'revisao_7d', 30 => 'revisao_30d'];
+        $stmt = $this->db->prepare("
+            INSERT INTO tarefas_estudo 
+            (plano_id, disciplina_id, topico_id, titulo, tipo, data_prevista, duracao_minutos, relevancia, instrucao_missao, resultado_esperado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        foreach ($ciclos as $dias => $tipo) {
+            $dataRev = (clone $dataOrigem)->modify("+$dias days");
+            $instrucao = ($tipo === 'revisao_24h') ? "REVISÃO RÁPIDA: Releia seus grifos e resolva as 3 questões que errou ontem." : "REVISÃO TÁTICA: Resolva 10 questões mistas deste tópico.";
+            
+            $stmt->execute([
+                $planoId,
+                $missao['disciplina_id'],
+                $missao['topico_id'],
+                "Revisão: " . $missao['titulo'],
+                $tipo,
+                $dataRev->format('Y-m-d'),
+                30,
+                $missao['relevancia'],
+                $instrucao,
+                $missao['resultado']
+            ]);
+        }
     }
 
     /**
      * Distribui horas por disciplina baseando-se em peso, dificuldade e urgência.
      */
     private function calcularHoras(array $disciplinas, float $horasTotais, float $urgenciaMult = 1.0): array {
-        // Fator de dificuldade: iniciante=1.5, intermediário=1.0, avançado=0.7
         $fatores = ['iniciante' => 1.5, 'intermediario' => 1.0, 'avancado' => 0.7];
 
         $pontosTotal = 0;
         foreach ($disciplinas as &$d) {
             $fator  = $fatores[$d['nivel'] ?? 'intermediario'] ?? 1.0;
-            // Dificuldade 1-10 também pondera: mais difícil = mais horas
             $dificuldade = max(1, min(10, (int)($d['dificuldade'] ?? 5))) / 5;
             $d['pontos'] = (float)$d['peso'] * $fator * $dificuldade * $urgenciaMult;
             $pontosTotal += $d['pontos'];
@@ -88,153 +312,12 @@ class StudyPlanner {
 
         foreach ($disciplinas as &$d) {
             $d['horas_alocadas'] = ($d['pontos'] / max(1, $pontosTotal)) * $horasTotais;
-            $d['horas_alocadas'] = max(2.0, $d['horas_alocadas']); // Mínimo 2 horas por disciplina
+            $d['horas_alocadas'] = max(2.0, $d['horas_alocadas']);
         }
         unset($d);
 
         return $disciplinas;
     }
-
-    /**
-     * Gera as tarefas diárias no banco de dados.
-     * Distribui em ciclos: estuda todas as disciplinas antes de repetir.
-     */
-    private function gerarTarefas(int $planoId, array $disciplinas, array $diasEstudo, float $horasDia, \DateTime $inicio): void {
-        $minutosHorasDia = $horasDia * 60;
-
-        // Montar um pool de blocos de estudo intercalados por disciplina
-        $queues = [];
-        $maxSessoes = 0;
-        foreach ($disciplinas as $disc) {
-            $horasPorSessao = 1.5; // cada sessão = 1.5 hora
-            $sessoes = max(1, ceil($disc['horas_alocadas'] / $horasPorSessao));
-            $minSessao = (int)($horasPorSessao * 60);
-            $maxSessoes = max($maxSessoes, $sessoes);
-
-            $discQueues = [];
-            for ($s = 0; $s < $sessoes; $s++) {
-                $discQueues[] = [
-                    'disciplina_id' => $disc['id'],
-                    'titulo'        => $disc['nome'],
-                    'tipo'          => 'estudo',
-                    'duracao'       => $minSessao,
-                    'disc_ref'      => $disc, // para revisões
-                ];
-            }
-            $queues[] = $discQueues;
-        }
-
-        // Intercalar blocos usando round-robin
-        $blocos = [];
-        for ($i = 0; $i < $maxSessoes; $i++) {
-            foreach ($queues as &$q) {
-                if (!empty($q)) {
-                    $blocos[] = array_shift($q);
-                }
-            }
-        }
-
-        // Distribuir blocos pelos dias de estudo
-        $data      = clone $inicio;
-        $blocoIdx  = 0;
-        $total     = count($blocos);
-        $maxDias   = 180; // limite de 6 meses
-        $diaContador = 0;
-        $tarefasInseridas = []; // [tarefa_id => tarefa_array]
-
-        $stmt = $this->db->prepare(
-            "INSERT INTO tarefas_estudo (plano_id, disciplina_id, titulo, tipo, data_prevista, duracao_minutos)
-             VALUES (?, ?, ?, ?, ?, ?)"
-        );
-        $stmtRev = $this->db->prepare(
-            "INSERT INTO tarefas_estudo (plano_id, disciplina_id, titulo, tipo, data_prevista, duracao_minutos)
-             VALUES (?, ?, ?, ?, ?, ?)"
-        );
-
-        while ($blocoIdx < $total && $diaContador < $maxDias) {
-            $diaSemana = (int)$data->format('N'); // 1=Mon...7=Sun
-            $diaSemanaStr = (string)$diaSemana;
-
-            if (in_array($diaSemanaStr, $diasEstudo)) {
-                $minRestantes = $minutosHorasDia;
-
-                while ($blocoIdx < $total && $minRestantes >= 30) {
-                    $bloco = $blocos[$blocoIdx];
-                    $dur   = min($bloco['duracao'], $minRestantes);
-
-                    $stmt->execute([
-                        $planoId,
-                        $bloco['disciplina_id'],
-                        $bloco['titulo'],
-                        'estudo',
-                        $data->format('Y-m-d'),
-                        $dur
-                    ]);
-                    $tarefaId = (int)$this->db->lastInsertId();
-
-                    // Agendar revisões automáticas
-                    $this->agendarRevisao($stmtRev, $planoId, $bloco, $data, $tarefaId, 1);   // 24h
-                    $this->agendarRevisao($stmtRev, $planoId, $bloco, $data, $tarefaId, 7);   // 7 dias
-                    $this->agendarRevisao($stmtRev, $planoId, $bloco, $data, $tarefaId, 30);  // 30 dias
-
-                    $minRestantes -= $dur;
-                    $blocoIdx++;
-                }
-            }
-
-            $data->modify('+1 day');
-            $diaContador++;
-        }
-    }
-
-    /**
-     * Agenda uma tarefa de revisão após N dias.
-     */
-    private function agendarRevisao(\PDOStatement $stmt, int $planoId, array $bloco, \DateTime $dataOrigem, int $tarefaOrigemId, int $dias): void {
-        $tipos = [1 => 'revisao_24h', 7 => 'revisao_7d', 30 => 'revisao_30d'];
-        $tipo  = $tipos[$dias] ?? 'revisao_7d';
-
-        $dataRevisao = (clone $dataOrigem)->modify("+$dias days");
-        $stmt->execute([
-            $planoId,
-            $bloco['disciplina_id'],
-            'Revisão - ' . $bloco['titulo'],
-            $tipo,
-            $dataRevisao->format('Y-m-d'),
-            30 // revisões duram 30 minutos
-        ]);
-    }
-
-    /**
-     * Reorganiza tarefas atrasadas para os próximos dias disponíveis.
-     */
-    public function reorganizarAtrasadas(int $planoId): int {
-        $hoje = date('Y-m-d');
-
-        // Buscar tarefas atrasadas não concluídas
-        $st = $this->db->prepare(
-            "SELECT id FROM tarefas_estudo
-             WHERE plano_id = ? AND concluida = 0 AND data_prevista < ? AND tipo = 'estudo'
-             ORDER BY data_prevista ASC"
-        );
-        $st->execute([$planoId, $hoje]);
-        $atrasadas = $st->fetchAll(PDO::FETCH_COLUMN);
-
-        if (empty($atrasadas)) return 0;
-
-        // Reagendar a partir de amanhã
-        $data = new \DateTime('tomorrow');
-        $upd  = $this->db->prepare("UPDATE tarefas_estudo SET data_prevista = ?, atrasada = 1 WHERE id = ?");
-
-        foreach ($atrasadas as $id) {
-            $upd->execute([$data->format('Y-m-d'), $id]);
-            $data->modify('+1 day');
-        }
-
-        return count($atrasadas);
-    }
-
-    // ---- HELPERS ----
 
     private function getDiagnostico(int $id): ?array {
         $st = $this->db->prepare("SELECT * FROM diagnosticos WHERE id = ?");
@@ -265,9 +348,7 @@ class StudyPlanner {
     }
 
     private function criarPlano(int $userId, int $cargoId, int $diagId, string $inicio): int {
-        // Desativar planos anteriores para que o novo seja o principal na visualização
         $this->db->prepare("UPDATE planos_estudo SET ativo = 0 WHERE usuario_id = ?")->execute([$userId]);
-
         $st = $this->db->prepare(
             "INSERT INTO planos_estudo (usuario_id, cargo_id, diagnostico_id, data_inicio, ativo) VALUES (?,?,?,?,1)"
         );
@@ -275,9 +356,29 @@ class StudyPlanner {
         return (int)$this->db->lastInsertId();
     }
 
-    /**
-     * Retorna as tarefas de hoje para exibição no dashboard.
-     */
+    public function reorganizarAtrasadas(int $planoId): int {
+        $hoje = date('Y-m-d');
+        $st = $this->db->prepare(
+            "SELECT id FROM tarefas_estudo
+             WHERE plano_id = ? AND concluida = 0 AND data_prevista < ? AND tipo = 'estudo'
+             ORDER BY data_prevista ASC"
+        );
+        $st->execute([$planoId, $hoje]);
+        $atrasadas = $st->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($atrasadas)) return 0;
+
+        $data = new \DateTime('tomorrow');
+        $upd  = $this->db->prepare("UPDATE tarefas_estudo SET data_prevista = ?, atrasada = 1 WHERE id = ?");
+
+        foreach ($atrasadas as $id) {
+            $upd->execute([$data->format('Y-m-d'), $id]);
+            $data->modify('+1 day');
+        }
+
+        return count($atrasadas);
+    }
+
     public function getTarefasHoje(int $usuarioId): array {
         $st = $this->db->prepare("
             SELECT t.*, d.nome AS disciplina_nome
@@ -292,9 +393,6 @@ class StudyPlanner {
         return $st->fetchAll();
     }
 
-    /**
-     * Calcula progresso geral do plano ativo.
-     */
     public function getProgressoGeral(int $usuarioId): array {
         $st = $this->db->prepare("
             SELECT
@@ -317,13 +415,8 @@ class StudyPlanner {
         ];
     }
 
-    /**
-     * Gera um resumo textual do status do aluno para ser usado pela IA.
-     */
     public function getResumoStatus(int $usuarioId): string {
         $progresso = $this->getProgressoGeral($usuarioId);
-        
-        // Buscar o cargo/concurso atual
         $st = $this->db->prepare("
             SELECT c.nome as cargo, e.nome_concurso
             FROM planos_estudo p
@@ -338,7 +431,6 @@ class StudyPlanner {
         $concurso = $info['nome_concurso'] ?? 'Não definido';
         $cargo    = $info['cargo'] ?? 'Não definido';
 
-        // Buscar nomes das disciplinas com maior dificuldade
         $std = $this->db->prepare("
             SELECT d.nome, dd.dificuldade 
             FROM diagnostico_disciplinas dd
@@ -364,15 +456,9 @@ class StudyPlanner {
         return $resumo;
     }
 
-    /**
-     * Calcula o risco estratégico de reprovação baseado no ritmo atual vs data da prova.
-     */
     public function getAnaliseRisco(int $usuarioId): array {
         $db = $this->db;
-        
-        // 1. Pegar dados básicos
         $progresso = $this->getProgressoGeral($usuarioId);
-        
         $st = $db->prepare("
             SELECT e.data_prova, p.horas_dia, p.usuario_id
             FROM planos_estudo pl
@@ -392,16 +478,11 @@ class StudyPlanner {
         $dataProva = new \DateTime($info['data_prova']);
         $hoje = new \DateTime();
         $diasRestantes = $hoje->diff($dataProva)->days;
-        
-        // 2. Calcular esforço necessário
         $tarefasRestantes = $progresso['total'] - $progresso['concluidas'];
-        $horasNecessarias = ($tarefasRestantes * 1.2); // média de 1.2h por tarefa (estudo + revisão)
-        
+        $horasNecessarias = ($tarefasRestantes * 1.2);
         if ($diasRestantes <= 0) return ['nivel' => 'critico', 'msg' => 'A prova já passou ou é hoje! Foco total.', 'cor' => '#ef4444'];
-
         $horasPorDiaNecessarias = $horasNecessarias / $diasRestantes;
         $capacidadeAtual = (float)$info['horas_dia'];
-        
         $ratio = $horasPorDiaNecessarias / max(0.5, $capacidadeAtual);
 
         if ($ratio > 2.5) {
@@ -431,4 +512,5 @@ class StudyPlanner {
             'dias_restantes' => $diasRestantes
         ];
     }
+
 }

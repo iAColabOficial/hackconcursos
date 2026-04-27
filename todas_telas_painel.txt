@@ -1,0 +1,2751 @@
+﻿<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../login.php');
+
+$db = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// ---- Dados do usuÃ¡rio ----
+$usrQ = $db->prepare("SELECT u.nome, u.plano, u.token_saldo, p.sequencia_dias, p.total_horas, p.horas_dia
+                       FROM usuarios u
+                       LEFT JOIN perfis_usuario p ON p.usuario_id = u.id
+                       WHERE u.id = ?");
+$usrQ->execute([$uid]);
+$usr = $usrQ->fetch() ?: ['nome'=>$_SESSION['usuario_nome']??'Aluno','plano'=>'free','token_saldo'=>0,'sequencia_dias'=>0,'total_horas'=>0,'horas_dia'=>2];
+
+// ---- Todos os Editais do UsuÃ¡rio ----
+$todosEditaisQ = $db->prepare("SELECT e.id, e.nome_concurso, e.data_prova FROM editais e WHERE e.usuario_id = ? AND e.ativo = 1 ORDER BY e.criado_em DESC");
+$todosEditaisQ->execute([$uid]);
+$todosEditais = $todosEditaisQ->fetchAll();
+
+// ---- Edital Selecionado (ID via GET ou o mais recente) ----
+$editalId = isset($_GET['edital_id']) ? (int)$_GET['edital_id'] : ($todosEditais[0]['id'] ?? 0);
+
+$editQ = $db->prepare("SELECT e.*, c.id as cargo_id, c.nome as cargo_nome FROM editais e
+                        LEFT JOIN cargos c ON c.edital_id = e.id AND c.selecionado = 1
+                        WHERE e.id = ? AND e.usuario_id = ? AND e.ativo = 1");
+$editQ->execute([$editalId, $uid]);
+$edital = $editQ->fetch();
+
+// ---- EstatÃ­sticas de progresso do edital selecionado ----
+$totalTarefas = 0; $concluidas = 0;
+if ($edital) {
+    $tQ = $db->prepare("SELECT COUNT(*) as total, SUM(concluida) as feitas FROM tarefas_estudo t
+                         JOIN planos_estudo p ON p.id = t.plano_id 
+                         WHERE p.usuario_id = ? AND p.cargo_id = ?");
+    $tQ->execute([$uid, $edital['cargo_id']]);
+    $stats = $tQ->fetch();
+    $totalTarefas = (int)($stats['total'] ?? 0);
+    $concluidas   = (int)($stats['feitas'] ?? 0);
+}
+$cobertura = $totalTarefas > 0 ? round(($concluidas / $totalTarefas) * 100, 1) : 0;
+
+// ---- Tarefas de hoje do edital selecionado ----
+$hoje = date('Y-m-d');
+$tarefasHoje = [];
+if ($edital) {
+    $hojeTQ = $db->prepare("
+        SELECT t.*, d.nome AS disciplina_nome, tp.nome AS topico_nome
+        FROM tarefas_estudo t
+        JOIN planos_estudo pl ON pl.id = t.plano_id
+        JOIN disciplinas d ON d.id = t.disciplina_id
+        LEFT JOIN topicos_edital tp ON tp.id = t.topico_id
+        WHERE pl.usuario_id = ? AND pl.cargo_id = ? AND t.data_prevista = ?
+        ORDER BY t.concluida ASC, t.id ASC LIMIT 8
+    ");
+    $hojeTQ->execute([$uid, $edital['cargo_id'], $hoje]);
+    $tarefasHoje = $hojeTQ->fetchAll();
+}
+
+// ---- Progresso por disciplina para o resumo inferior ----
+$progDisc = [];
+if ($edital) {
+    $pdQ = $db->prepare("
+        SELECT d.nome, 
+               (SUM(t.concluida) * 100.0 / COUNT(t.id)) as percentual_concluido
+        FROM disciplinas d
+        JOIN tarefas_estudo t ON t.disciplina_id = d.id
+        JOIN planos_estudo pl ON pl.id = t.plano_id
+        WHERE pl.usuario_id = ? AND pl.cargo_id = ?
+        GROUP BY d.id
+    ");
+    $pdQ->execute([$uid, $edital['cargo_id']]);
+    $progDisc = $pdQ->fetchAll();
+}
+
+// ---- Ranking (Top 5 usuÃ¡rios por horas totais) ----
+$rankQ = $db->query("SELECT u.nome, u.avatar, COALESCE(p.total_horas,0) AS horas
+                      FROM usuarios u LEFT JOIN perfis_usuario p ON p.usuario_id = u.id
+                      WHERE u.perfil='aluno' ORDER BY horas DESC LIMIT 5");
+$ranking = $rankQ->fetchAll();
+
+// ---- PrÃ³xima prova ----
+$diasProva = null;
+if ($edital && $edital['data_prova']) {
+    $diff = (new DateTime($edital['data_prova']))->diff(new DateTime());
+    $diasProva = max(0, $diff->days);
+}
+
+// ---- Tempo estudado ----
+$hTotal = (float)($usr['total_horas'] ?? 0);
+$horas  = floor($hTotal);
+$mins   = round(($hTotal - $horas) * 60);
+
+// ---- Verificar se hÃ¡ tarefas atrasadas para o gatilho de IA ----
+$temAtrasadas = false;
+if ($edital) {
+    $atrasQ = $db->prepare("SELECT COUNT(*) FROM tarefas_estudo t JOIN planos_estudo p ON p.id = t.plano_id WHERE p.usuario_id = ? AND p.cargo_id = ? AND t.atrasada = 1 AND t.concluida = 0");
+    $atrasQ->execute([$uid, $edital['cargo_id']]);
+    $temAtrasadas = $atrasQ->fetchColumn() > 0;
+}
+
+// ---- AnÃ¡lise de Risco EstratÃ©gico ----
+require_once __DIR__ . '/../classes/StudyPlanner.php';
+$planner = new StudyPlanner();
+$risco = $planner->getAnaliseRisco($uid);
+
+$page_title = 'Dashboard';
+$page_desc  = 'Seu painel de estudos personalizado';
+require_once __DIR__ . '/../includes/header.php';
+?>
+<style>
+    .blur-text { filter: blur(8px); user-select: none; pointer-events: none; }
+    .locked-card { position: relative; overflow: hidden; }
+    .locked-overlay {
+        position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+        backdrop-filter: blur(4px); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; z-index: 10;
+        transition: all 0.3s; cursor: pointer; border-radius: inherit;
+    }
+    .locked-overlay:hover { background: rgba(0,0,0,0.6); }
+    .btn-upgrade-sm {
+        background: var(--neon-green); color: #000; font-size: 0.7rem;
+        font-weight: 800; padding: 0.4rem 0.8rem; border-radius: 100px;
+        text-decoration: none; margin-top: 0.5rem; text-transform: uppercase;
+    }
+    .alert-ia {
+        background: linear-gradient(90deg, rgba(239, 68, 68, 0.15), rgba(245, 158, 11, 0.15));
+        border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md);
+        padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+        margin-bottom: 1.5rem; animation: pulse-border 2s infinite;
+    }
+    @keyframes pulse-border {
+        0% { border-color: rgba(239, 68, 68, 0.3); }
+        50% { border-color: rgba(239, 68, 68, 0.8); }
+        100% { border-color: rgba(239, 68, 68, 0.3); }
+    }
+
+    /* Estilos de Risco e Energia */
+    .risk-banner {
+        background: rgba(0,0,0,0.4); border: 1px solid <?= $risco['cor'] ?>;
+        border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 2rem;
+        display: flex; align-items: center; gap: 2rem; position: relative;
+        overflow: hidden; box-shadow: 0 0 20px <?= $risco['cor'] ?>20;
+    }
+    .risk-banner::before {
+        content: ""; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+        background: <?= $risco['cor'] ?>;
+    }
+    .risk-indicator {
+        width: 60px; height: 60px; border-radius: 50%; border: 4px solid <?= $risco['cor'] ?>;
+        display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+        color: <?= $risco['cor'] ?>; flex-shrink: 0;
+        animation: pulse-risk 2s infinite;
+    }
+    @keyframes pulse-risk {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .energy-badge {
+        background: linear-gradient(135deg, #fbbf24, #d97706);
+        color: #000; font-weight: 900; padding: 0.3rem 0.8rem;
+        border-radius: 100px; font-size: 0.75rem; text-transform: uppercase;
+        display: flex; align-items: center; gap: 0.4rem; box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+    }
+
+    /* --- MODO GUERRA EXCLUSIVO --- */
+    .modo-guerra-active {
+        background: radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.05) 0%, transparent 70%);
+    }
+    .modo-guerra-active .kpi-card {
+        border-color: rgba(34, 197, 94, 0.2);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 15px rgba(34,197,94,0.02);
+    }
+    .modo-guerra-active .kpi-value {
+        text-shadow: 0 0 15px var(--neon-green-glow);
+        letter-spacing: -1px;
+    }
+    .modo-guerra-active .sidebar-hc {
+        border-right: 1px solid rgba(34, 197, 94, 0.15);
+    }
+    .modo-guerra-active .card-glass {
+        border-color: rgba(255,255,255,0.1);
+        background: rgba(10, 10, 10, 0.8);
+    }
+    .modo-guerra-active .badge-neon {
+        animation: neon-pulse 1.5s infinite alternate;
+    }
+    @keyframes neon-pulse {
+        from { box-shadow: 0 0 5px var(--neon-green); }
+        to { box-shadow: 0 0 15px var(--neon-green); }
+    }
+    
+    /* Overlay de scanner sutil */
+    .modo-guerra-active::after {
+        content: "";
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+        background-size: 100% 4px, 3px 100%;
+        pointer-events: none; z-index: 9999; opacity: 0.1;
+    }
+</style>
+
+<!-- ====== LAYOUT ====== -->
+<div class="dashboard-layout <?= $usr['plano'] === 'premium' ? 'modo-guerra-active' : '' ?>" style="position:relative;z-index:1;">
+
+  <!-- SIDEBAR -->
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <!-- 1. HUD FIXO (TOPO) -->
+    <div style="background: rgba(10,10,10,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.05); padding: 1rem 2rem; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between;">
+        
+        <!-- Stats -->
+        <div class="d-flex ai-center" style="gap: 2.5rem;">
+            <!-- XP / NÃ­vel -->
+            <div class="d-flex ai-center gap-sm">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(34,197,94,0.1); border: 2px solid var(--neon-green); display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--neon-green); font-size: 1.2rem;">
+                    <?= floor($usr['total_horas'] / 10) + 1 ?>
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; letter-spacing: 1px;">NÃVEL ATUAL</div>
+                    <div style="font-weight: 800; color: white;">NoviÃ§o TÃ¡tico</div>
+                </div>
+            </div>
+
+            <!-- Streak -->
+            <div class="d-flex ai-center gap-sm">
+                <i class="bi bi-fire" style="font-size: 1.8rem; color: #f97316;"></i>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; letter-spacing: 1px;">SEQUÃŠNCIA</div>
+                    <div style="font-weight: 900; color: white; font-size: 1.1rem;"><?= (int)$usr['sequencia_dias'] ?> DIAS</div>
+                </div>
+            </div>
+
+            <!-- Energia -->
+            <div class="d-flex ai-center gap-sm">
+                <i class="bi bi-lightning-charge-fill" style="font-size: 1.5rem; color: #fbbf24; filter: drop-shadow(0 0 5px rgba(251,191,36,0.5));"></i>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; letter-spacing: 1px;">ENERGIA</div>
+                    <div style="font-weight: 900; color: white; font-size: 1.1rem;"><?= $usr['token_saldo'] ?> <span style="font-size:0.7rem; font-weight:500;">tokens</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Risco e Skill IA -->
+        <div class="d-flex ai-center" style="gap: 1.5rem;">
+            <?php if (count($todosEditais) > 1): ?>
+                <select onchange="location.href='?edital_id=' + this.value" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 0.8rem; padding: 0.4rem 1rem; border-radius: 4px; outline: none; cursor: pointer;">
+                    <?php foreach ($todosEditais as $te): ?>
+                    <option value="<?= $te['id'] ?>" <?= $editalId == $te['id'] ? 'selected' : '' ?>>
+                        <?= sanitize($te['nome_concurso']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            <?php endif; ?>
+
+            <?php 
+                $risco = (empty($tarefasHoje) && !$edital) ? 'CRÃTICO' : ($cobertura < 10 ? 'ALTO' : 'CONTROLADO');
+                $riscoColor = $risco == 'CRÃTICO' ? '#ef4444' : ($risco == 'ALTO' ? '#f97316' : '#22c55e');
+            ?>
+            <div style="text-align: right; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1.5rem;">
+                <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; letter-spacing: 1px;">RISCO DE REPROVAÃ‡ÃƒO</div>
+                <div style="color: <?= $riscoColor ?>; font-weight: 900; font-size: 1.1rem;"><?= $risco ?></div>
+            </div>
+            
+            <a href="chat_edital.php" class="btn-hc" style="background: linear-gradient(135deg, #a855f7, #7e22ce); color: white; border: none; font-weight: 900; padding: 0.6rem 1.5rem; letter-spacing: 1px; box-shadow: 0 0 15px rgba(168,85,247,0.4);">
+                <i class="bi bi-cpu-fill"></i> ATIVAR IA
+            </a>
+        </div>
+    </div>
+
+    <!-- MAIN GAME CONTAINER -->
+    <div style="max-width: 1300px; margin: 0 auto; padding: 2.5rem; display: grid; grid-template-columns: 1fr 340px; gap: 2.5rem; align-items: start;">
+        
+        <!-- LADO ESQUERDO: MISSÃƒO E PROGRESSÃƒO -->
+        <div style="display: flex; flex-direction: column; gap: 2.5rem;">
+            
+            <!-- 2. OBJETIVO ATUAL (FOCO CENTRAL) -->
+            <?php if (!$edital): ?>
+                <div class="card-glass text-center animate__animated animate__pulse animate__infinite" style="padding: 4rem 2rem; border: 2px dashed #ef4444; background: rgba(239,68,68,0.05);">
+                    <i class="bi bi-shield-x" style="font-size: 4rem; color: #ef4444;"></i>
+                    <h2 class="fw-900 text-white mt-md">VOCÃŠ ESTÃ DESARMADO</h2>
+                    <p class="text-muted mb-lg" style="font-size: 1.1rem;">Sem um alvo, o sistema nÃ£o pode gerar sua missÃ£o. Seu risco Ã© 100%.</p>
+                    <a href="biblioteca.php" class="btn-hc px-xl py-3 fw-900" style="background: #ef4444; color: white;">ESCOLHER MEU ALVO AGORA</a>
+                </div>
+            <?php else: 
+                $missaoAtiva = null;
+                foreach($tarefasHoje as $t) { if(!$t['concluida']) { $missaoAtiva = $t; break; } }
+                if(!$missaoAtiva && !empty($tarefasHoje)) $missaoAtiva = $tarefasHoje[0];
+            ?>
+                <?php if ($missaoAtiva): ?>
+                    <div style="background: radial-gradient(circle at top right, rgba(34,197,94,0.1), transparent), #0c0a09; border: 1px solid rgba(34,197,94,0.3); border-radius: 16px; padding: 2.5rem; position: relative; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+                        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--neon-green);"></div>
+                        
+                        <div class="d-flex jc-between ai-start mb-md">
+                            <div>
+                                <div style="font-size: 0.75rem; font-weight: 800; color: var(--neon-green); letter-spacing: 2px; margin-bottom: 0.5rem;">OBJETIVO ATUAL</div>
+                                <h1 style="font-size: 2.8rem; font-weight: 900; color: white; line-height: 1.1; margin: 0; letter-spacing: -1px;">
+                                    <?= sanitize($missaoAtiva['topico_nome'] ?: $missaoAtiva['disciplina_nome']) ?>
+                                </h1>
+                            </div>
+                            <div class="text-right">
+                                <span class="badge-hc" style="background: rgba(249,115,22,0.1); color: #f97316; border: 1px solid #f97316;">
+                                    <i class="bi bi-fire"></i> PRIORIDADE <?= strtoupper($missaoAtiva['relevancia']) ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800; letter-spacing: 1px; margin-bottom: 0.5rem;">AÃ‡ÃƒO REQUERIDA</div>
+                            <p style="color: #e4e4e7; font-size: 1.1rem; margin: 0; line-height: 1.6;">
+                                <?= sanitize($missaoAtiva['instrucao_missao']) ?>
+                            </p>
+                        </div>
+
+                        <div class="d-flex gap-lg ai-center">
+                            <button onclick="iniciarMissao(<?= $missaoAtiva['id'] ?>)" class="btn-hc py-4 px-xl" style="background: var(--neon-green); color: black; font-weight: 900; font-size: 1.3rem; letter-spacing: 1px; border: none; box-shadow: 0 0 20px rgba(34,197,94,0.4); flex: 1;">
+                                INICIAR MISSÃƒO <i class="bi bi-play-fill"></i>
+                            </button>
+                            
+                            <div style="flex: 0 0 auto;">
+                                <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; text-align: center; margin-bottom: 0.2rem;">RECOMPENSA</div>
+                                <div style="font-weight: 900; color: white; font-size: 1.2rem;">+25 XP <span style="color: var(--neon-green);">|+1% DomÃ­nio</span></div>
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div style="background: #0c0a09; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 4rem 2rem; text-align: center;">
+                        <i class="bi bi-check-circle-fill text-neon" style="font-size: 4rem;"></i>
+                        <h2 class="fw-900 text-white mt-md">ZONA SEGURA</h2>
+                        <p class="text-muted mb-lg">VocÃª destruiu todas as metas de hoje. Seu risco caiu drasticamente.</p>
+                        <a href="plano_estudos.php" class="btn-hc btn-ghost">ANTECIPAR MISSÃ•ES DE AMANHÃƒ</a>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- 3. PROGRESSÃƒO VISUAL (JORNADA) -->
+            <?php if ($edital): ?>
+            <div>
+                <h4 style="font-size: 1.1rem; font-weight: 900; color: white; margin-bottom: 1.5rem; letter-spacing: 1px;">SUA EVOLUÃ‡ÃƒO NO JOGO</h4>
+                
+                <div style="background: #0c0a09; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 2rem;">
+                    <!-- Cobertura Global -->
+                    <div class="mb-lg">
+                        <div class="d-flex jc-between ai-end mb-sm">
+                            <div>
+                                <div style="font-weight: 800; color: white; font-size: 1.1rem;">DomÃ­nio do Edital</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">VocÃª jÃ¡ conquistou <?= $concluidas ?> de <?= $totalTarefas ?> territÃ³rios.</div>
+                            </div>
+                            <div style="font-weight: 900; font-size: 1.5rem; color: var(--accent-blue);"><?= $cobertura ?>%</div>
+                        </div>
+                        <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
+                            <div style="height: 100%; width: <?= $cobertura ?>%; background: linear-gradient(90deg, #3b82f6, #60a5fa); box-shadow: 0 0 10px rgba(59,130,246,0.5); transition: width 1s ease-in-out;"></div>
+                        </div>
+                    </div>
+
+                    <!-- MÃ©tricas de Batalha -->
+                    <div class="grid-2" style="gap: 1.5rem;">
+                        <div style="background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: 8px;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">PRECISÃƒO TÃTICA (ACERTOS)</div>
+                            <div style="font-size: 1.8rem; font-weight: 900; color: white;">72% <i class="bi bi-arrow-up-short text-neon"></i></div>
+                            <div style="font-size: 0.75rem; color: var(--neon-green);">+5% nesta semana</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: 8px;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">ÃNDICE DE APROVAÃ‡ÃƒO IA</div>
+                            <?php if ($usr['plano'] === 'premium'): ?>
+                                <div style="font-size: 1.8rem; font-weight: 900; color: #a855f7;">81%</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Risco controlado.</div>
+                            <?php else: ?>
+                                <div style="font-size: 1.8rem; font-weight: 900; color: #a855f7; filter: blur(4px); user-select: none;">85%</div>
+                                <a href="meu_plano.php" style="font-size: 0.75rem; color: #a855f7; text-decoration: none; font-weight: 800;"><i class="bi bi-lock-fill"></i> DESBLOQUEAR IA</a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+        </div> <!-- / Fim Lado Esquerdo -->
+
+        <!-- 4. LADO DIREITO: PRESSÃƒO PSICOLÃ“GICA -->
+        <div style="display: flex; flex-direction: column; gap: 2rem;">
+            
+            <!-- SequÃªncia de Dias -->
+            <div style="background: #0c0a09; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 2rem; text-align: center; position: relative; overflow: hidden;">
+                <!-- Fogo no background se streak alto -->
+                <?php if ($usr['sequencia_dias'] > 0): ?>
+                <div style="position: absolute; top: -50px; left: 50%; transform: translateX(-50%); width: 200px; height: 200px; background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%); pointer-events: none;"></div>
+                <?php endif; ?>
+                
+                <h5 style="font-size: 0.8rem; font-weight: 800; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 1rem;">MANTENHA A CHAMA</h5>
+                
+                <div style="font-size: 4rem; font-weight: 900; color: <?= $usr['sequencia_dias'] > 0 ? '#f97316' : '#52525b' ?>; line-height: 1; margin-bottom: 0.5rem; text-shadow: <?= $usr['sequencia_dias'] > 0 ? '0 0 20px rgba(249,115,22,0.4)' : 'none' ?>;">
+                    <?= (int)$usr['sequencia_dias'] ?>
+                </div>
+                <div style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; margin-bottom: 1.5rem;">DIAS SEGUIDOS SOBREVIVENDO</div>
+                
+                <?php if ($usr['sequencia_dias'] > 0): ?>
+                    <div style="background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.2); color: #fdba74; font-size: 0.8rem; padding: 0.8rem; border-radius: 6px; font-weight: 700;">
+                        Se vocÃª parar hoje, todo o seu bÃ´nus de XP serÃ¡ zerado amanhÃ£.
+                    </div>
+                <?php else: ?>
+                    <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; font-size: 0.8rem; padding: 0.8rem; border-radius: 6px; font-weight: 700;">
+                        Sua sequÃªncia quebrou. Recomece agora para estancar a perda.
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Desafio Semanal -->
+            <div style="background: #0c0a09; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 2rem;">
+                <div class="d-flex jc-between ai-center mb-md">
+                    <h5 style="font-size: 0.8rem; font-weight: 800; color: #a855f7; letter-spacing: 1px; margin: 0;">MISSÃƒO EXTRA</h5>
+                    <i class="bi bi-star-fill" style="color: #a855f7;"></i>
+                </div>
+                
+                <div style="font-weight: 800; font-size: 1.1rem; color: white; margin-bottom: 0.5rem;">Sobreviver 15 horas</div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1.5rem;">
+                    Bata a meta de tempo nesta semana para liberar <strong style="color:white;">+500 XP</strong> e <strong>+10 Energias</strong>.
+                </p>
+                
+                <?php $progDesaf = min(100, round(($hTotal / 15) * 100)); ?>
+                <div style="height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;">
+                    <div style="height: 100%; width: <?= $progDesaf ?>%; background: #a855f7;"></div>
+                </div>
+                <div class="text-right" style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">
+                    <?= number_format($hTotal, 1) ?>H / 15H
+                </div>
+            </div>
+
+        </div> <!-- / Fim Lado Direito -->
+
+    </div> <!-- / MAIN GAME CONTAINER -->
+
+  </main>
+</div>
+
+<!-- MODAL DE FEEDBACK DA MISSÃƒO -->
+<div id="modalFeedback" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:10000; display:none; align-items:center; justify-content:center; padding:2rem;">
+    <div class="card-glass animate__animated animate__fadeInUp" style="max-width:450px; width:100%; border:1px solid var(--neon-green);">
+        <div class="card-header-hc d-flex jc-between ai-center">
+            <h4 style="margin:0;"><i class="bi bi-trophy text-neon"></i> MissÃ£o Cumprida!</h4>
+            <button onclick="fecharModalFeedback()" class="btn-hc btn-ghost btn-sm"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-lg">ParabÃ©ns! Registre sua performance para que a IA possa recalcular suas fraquezas.</p>
+            
+            <form id="formFeedback">
+                <input type="hidden" id="feedbackTaskId">
+                
+                <div class="row-hc mb-md">
+                    <div class="col-6">
+                        <label class="form-label small fw-700">QuestÃµes Feitas</label>
+                        <input type="number" id="qTotal" class="form-control-hc" value="10" min="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-700">Acertos</label>
+                        <input type="number" id="qAcerto" class="form-control-hc" value="7" min="0">
+                    </div>
+                </div>
+
+                <div class="mb-lg">
+                    <label class="form-label small fw-700">Tempo Gasto (minutos)</label>
+                    <input type="range" id="tGasto" min="5" max="180" step="5" value="60" class="w-100" style="accent-color:var(--neon-green);" oninput="document.getElementById('tVal').textContent = this.value + ' min'">
+                    <div id="tVal" class="text-center text-neon fw-700 mt-xs">60 min</div>
+                </div>
+
+                <button type="submit" class="btn-hc btn-neon w-100 py-3 shadow-neon">
+                    SALVAR RESULTADOS <i class="bi bi-cloud-upload"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---- GrÃ¡ficos Circulares (Chart.js) ----
+(function(){
+  const ctxCircular = document.getElementById('circularChart');
+  if(ctxCircular) {
+      new Chart(ctxCircular, {
+          type: 'doughnut',
+          data: {
+              datasets: [{
+                  data: [<?= $cobertura ?>, <?= 100 - $cobertura ?>],
+                  backgroundColor: ['#22C55E', 'rgba(255,255,255,0.05)'],
+                  borderWidth: 0
+              }]
+          },
+          options: { cutout: '80%', plugins: { legend: {display:false}, tooltip: {enabled:false} } }
+      });
+  }
+})();
+
+// ---- LÃ³gica de MissÃ£o ----
+let currentTaskId = null;
+
+function iniciarMissao(id) {
+    currentTaskId = id;
+    // No futuro, isso poderia abrir um cronÃ´metro ou o material
+    // Por enquanto, vamos permitir concluir
+    abrirModalFeedback(id);
+}
+
+function abrirModalFeedback(id) {
+    document.getElementById('feedbackTaskId').value = id;
+    document.getElementById('modalFeedback').style.display = 'flex';
+}
+
+function fecharModalFeedback() {
+    document.getElementById('modalFeedback').style.display = 'none';
+}
+
+document.getElementById('formFeedback').onsubmit = async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader-spinner"></span> Salvando...';
+
+    const data = {
+        id: document.getElementById('feedbackTaskId').value,
+        questoes_total: document.getElementById('qTotal').value,
+        questoes_acerto: document.getElementById('qAcerto').value,
+        tempo_gasto: document.getElementById('tGasto').value
+    };
+
+    try {
+        const r = await fetch('<?= APP_URL ?>/controllers/missao_feedback.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const res = await r.json();
+        
+        if(res.ok) {
+            fecharModalFeedback();
+            
+            // Se o sistema sugerir IA (desempenho baixo), mostramos o CTA antes de recarregar
+            if(res.sugerir_ia) {
+                abrirPainelDiagnosticoIA(res);
+            } else {
+                // ANIMAÃ‡ÃƒO DE XP (Game Loop Feedback)
+                const xpAnim = document.createElement('div');
+                xpAnim.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:99999; text-align:center; animation: zoomInUp 1s forwards;";
+                xpAnim.innerHTML = `
+                    <div style="font-size:4rem; color:var(--neon-green); text-shadow:0 0 20px rgba(34,197,94,0.8); font-weight:900;">+25 XP</div>
+                    <div style="font-size:1.5rem; color:white; font-weight:800;">MissÃ£o ConcluÃ­da!</div>
+                `;
+                document.body.appendChild(xpAnim);
+                
+                setTimeout(() => { location.reload(); }, 1500);
+            }
+        } else {
+            alert(res.msg);
+            btn.disabled = false;
+            btn.innerHTML = 'SALVAR RESULTADOS <i class="bi bi-cloud-upload"></i>';
+        }
+    } catch(err) {
+        alert("Erro de conexÃ£o");
+        btn.disabled = false;
+        btn.innerHTML = 'SALVAR RESULTADOS <i class="bi bi-cloud-upload"></i>';
+    }
+};
+
+function abrirPainelDiagnosticoIA(res) {
+    const freq = res.frequencia || 0;
+    const riskLabel = freq > 1 ? 'MUITO ALTO' : 'ALTO';
+    const riskColor = freq > 1 ? '#ef4444' : '#f97316';
+    
+    const overlay = document.createElement('div');
+    overlay.style = "position:fixed; inset:0; background:rgba(0,0,0,0.95); backdrop-filter:blur(20px); z-index:20000; display:flex; align-items:center; justify-content:center; padding:2rem;";
+    overlay.innerHTML = `
+        <div class="card-glass animate__animated animate__zoomIn" style="max-width:550px; width:100%; border:1px solid ${riskColor}; text-align:center; overflow:hidden;">
+            <div style="background:${riskColor}; color:black; padding:0.5rem; font-size:0.7rem; font-weight:900; letter-spacing:2px;">
+                RISCO DE REPROVAÃ‡ÃƒO: ${riskLabel}
+            </div>
+            <div class="card-body" style="padding:2.5rem;">
+                <h3 class="text-white fw-900 mb-md" style="font-size:1.8rem; line-height:1.2;">
+                    VocÃª jÃ¡ errou esse padrÃ£o <span style="color:${riskColor}">${freq + 1} vezes</span>.
+                </h3>
+                <p class="text-muted mb-lg" style="font-size:0.95rem;">
+                    Ignorar este erro agora significa que ele vai se repetir na prova. Esse tipo de padrÃ£o tirou <strong>1.200 candidatos</strong> da Ãºltima nota de corte.
+                </p>
+                
+                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); padding:1.5rem; border-radius:var(--radius-md); margin-bottom:2rem; text-align:left;">
+                    <div class="d-flex ai-center gap-sm mb-sm">
+                        <i class="bi bi-shield-exclamation" style="color:${riskColor}; font-size:1.2rem;"></i>
+                        <span class="text-white fw-700 small">DIAGNÃ“STICO DE IA DISPONÃVEL</span>
+                    </div>
+                    <p class="small text-muted" style="margin:0;">A IA detectou uma armadilha tÃ¡tica da banca neste tÃ³pico. Use 1 Energia agora para economizar 20 questÃµes de erro futuro.</p>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr; gap:1rem;">
+                    <a href="diagnostico_erro.php?id=${document.getElementById('feedbackTaskId').value}" 
+                       class="btn-hc py-3 shadow-neon" 
+                       style="background:${riskColor}; color:black; font-weight:900; text-transform:uppercase; letter-spacing:1px; border:none; text-decoration:none;">
+                        BLOQUEAR ESSE ERRO AGORA <i class="bi bi-lock-fill"></i>
+                    </a>
+                    
+                    <button onclick="location.reload()" class="btn-hc btn-ghost btn-sm" style="color:#71717a;">
+                        Arriscar continuar errando e recarregar
+                    </button>
+                </div>
+                
+                <div class="mt-lg d-flex jc-between ai-center pt-md" style="border-top:1px solid rgba(255,255,255,0.05);">
+                    <span class="text-muted small">Investimento: <strong>50 Energias</strong></span>
+                    <span class="text-neon small fw-700">+12% de evoluÃ§Ã£o hoje</span>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+async function toggleTarefa(id, el) {
+  if(!el.classList.contains('done')) {
+      abrirModalFeedback(id);
+      return;
+  }
+  // Se jÃ¡ estÃ¡ concluÃ­da, apenas desselecionar (opcional)
+}
+</script>
+
+<?php require_once __DIR__ . '/../includes/header.php'; ?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+
+<?php
+/**
+ * HackConcursos - Sidebar do Dashboard
+ * IncluÃ­da em todas as pÃ¡ginas da Ã¡rea do aluno e admin
+ */
+$current_page = basename($_SERVER['PHP_SELF']);
+$is_admin = ($_SESSION['perfil'] ?? '') === 'admin';
+$base = APP_URL . ($is_admin ? '/admin' : '/aluno');
+
+function sidebarItem(string $href, string $icon, string $label, string $current, ?string $badge = null): string {
+    $active = (basename($href) === $current) ? ' active' : '';
+    $b = $badge ? "<span class='badge'>{$badge}</span>" : '';
+    return "<a href='{$href}' class='sidebar-item{$active}'><span class='icon'><i class='bi bi-{$icon}'></i></span>{$label}{$b}</a>";
+}
+?>
+<aside class="sidebar-hc" id="sidebar">
+  <div class="sidebar-brand" style="padding-bottom:1.25rem;">
+  <a href="<?= APP_URL ?>/aluno/dashboard.php">
+    <img src="<?= APP_URL ?>/assets/img/logo.png" alt="HackConcursos" style="width:140px;height:auto;display:block;">
+  </a>
+</div>
+  <nav class="sidebar-menu">
+
+<?php if (!$is_admin): ?>
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">INÃCIO</div>
+    <?= sidebarItem($base . '/dashboard.php',     'crosshair',       'Central de MissÃ£o', $current_page) ?>
+    <?= sidebarItem($base . '/biblioteca.php',    'journal-bookmark', 'Campo de Batalha',  $current_page) ?>
+
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">EXECUÃ‡ÃƒO</div>
+    <?= sidebarItem($base . '/plano_estudos.php', 'list-task',       'MissÃµes Futuras',   $current_page) ?>
+    <?= sidebarItem($base . '/simulados.php',     'patch-question',  'Simulados',         $current_page) ?>
+
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--warning);">INTELIGÃŠNCIA <i class="bi bi-lock-fill small" style="opacity:0.5"></i></div>
+    <?= sidebarItem($base . '/diagnostico_erro.php','shield-exclamation','Scanner de Erro', $current_page) ?>
+    <?= sidebarItem('#',                          'graph-up-arrow',  'Insights (Em breve)', $current_page) ?>
+
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--neon-green);">ARSENAL</div>
+    <?= sidebarItem($base . '/chat_edital.php',   'cpu',             'Consultor IA',      $current_page) ?>
+    <?= sidebarItem($base . '/loja.php',          'bag-plus',        'Energia & Upgrades', $current_page) ?>
+
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">CONTA</div>
+    <?= sidebarItem($base . '/perfil.php',        'person-circle',   'Perfil do Aluno',   $current_page) ?>
+    <?= sidebarItem($base . '/meu_plano.php',     'credit-card',     'Minha Assinatura',  $current_page) ?>
+
+<?php else: ?>
+    <div class="sidebar-section-label">AdministraÃ§Ã£o</div>
+    <?= sidebarItem($base . '/index.php',    'speedometer2',  'Painel Admin',        $current_page) ?>
+    <?= sidebarItem($base . '/usuarios.php', 'people-fill',   'UsuÃ¡rios',            $current_page) ?>
+    <?= sidebarItem($base . '/biblioteca.php', 'journal-bookmark-fill', 'Biblioteca IA', $current_page) ?>
+    <?= sidebarItem($base . '/editais.php',  'file-text-fill','Editais Enviados',    $current_page) ?>
+    <?= sidebarItem($base . '/produtos.php', 'shop',          'Produtos da Loja',    $current_page) ?>
+    <?= sidebarItem($base . '/relatorios.php','graph-up',     'RelatÃ³rios',          $current_page) ?>
+    <?= sidebarItem($base . '/crawler_control.php', 'cpu-fill', 'Crawler PCI',       $current_page) ?>
+
+    <div class="sidebar-section-label">Conta</div>
+<?php endif; ?>
+
+    <a href="<?= APP_URL ?>/logout.php" class="sidebar-item" style="color:var(--danger)">
+      <span class="icon"><i class="bi bi-box-arrow-left"></i></span>Sair
+    </a>
+  </nav>
+
+  <div style="padding:1rem 1.25rem;border-top:1px solid var(--border-glass);">
+    <?php
+    $p = $_SESSION['plano'] ?? 'free';
+    $tokens = $_SESSION['token_saldo'] ?? 0;
+    
+    $plano_label = ['free'=>'Plano Gratuito','premium'=>'Modo Guerra âš¡'];
+    $plano_class = ['free'=>'badge-blue','premium'=>'badge-neon'];
+    ?>
+    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.35rem;">Plano atual</div>
+    <span class="badge-hc <?= $plano_class[$p] ?>"><?= $plano_label[$p] ?></span>
+    
+    <?php if ($p !== 'premium'): ?>
+    <div class="mt-xs" style="font-size:0.75rem; color:#fbbf24; margin-top:0.5rem; font-weight:700; display:flex; align-items:center; gap:0.4rem;">
+        <i class="bi bi-lightning-charge-fill"></i> <?= $tokens ?> Energia
+    </div>
+    <a href="<?= APP_URL ?>/planos.php" class="btn-hc btn-neon btn-sm mt-xs w-100" style="margin-top:0.6rem; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+       <i class="bi bi-rocket-takeoff-fill"></i> Upgrade
+    </a>
+    <?php endif; ?>
+
+    <!-- Toggle de Tema -->
+    <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border-glass);">
+      <button id="theme-toggle" onclick="toggleTheme()"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid var(--border-glass);border-radius:var(--radius-md);padding:0.55rem 0.85rem;cursor:pointer;font-family:var(--font-main);font-size:0.8rem;font-weight:600;color:var(--text-secondary);transition:all 0.25s;">
+        <span id="theme-label" style="display:flex;align-items:center;gap:0.5rem;">
+          <i class="bi bi-moon-stars-fill" id="theme-icon"></i>
+          <span id="theme-text">Tema Escuro</span>
+        </span>
+        <div id="theme-pill" style="width:32px;height:18px;border-radius:9px;background:var(--border-glass);position:relative;transition:background 0.3s;">
+          <div id="theme-knob" style="width:12px;height:12px;border-radius:50%;background:var(--text-muted);position:absolute;top:3px;left:3px;transition:all 0.3s;"></div>
+        </div>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<script>
+(function() {
+  // Aplicar tema salvo ao carregar (evita flash)
+  const saved = localStorage.getItem('hc_theme') || 'dark';
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next    = current === 'light' ? 'dark' : 'light';
+
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('hc_theme', next);
+  atualizarBotaoTema(next);
+}
+
+function atualizarBotaoTema(tema) {
+  const icon  = document.getElementById('theme-icon');
+  const text  = document.getElementById('theme-text');
+  const pill  = document.getElementById('theme-pill');
+  const knob  = document.getElementById('theme-knob');
+
+  if (tema === 'light') {
+    icon.className  = 'bi bi-sun-fill';
+    icon.style.color= '#D97706';
+    text.textContent= 'Tema Claro';
+    pill.style.background = '#22C55E';
+    knob.style.left = '17px';
+    knob.style.background = '#fff';
+  } else {
+    icon.className  = 'bi bi-moon-stars-fill';
+    icon.style.color= '';
+    text.textContent= 'Tema Escuro';
+    pill.style.background = 'var(--border-glass)';
+    knob.style.left = '3px';
+    knob.style.background = 'var(--text-muted)';
+  }
+}
+
+// Inicializar visual do botÃ£o conforme tema salvo
+document.addEventListener('DOMContentLoaded', function() {
+  const saved = localStorage.getItem('hc_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  atualizarBotaoTema(saved);
+});
+</script>
+<?php
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../classes/StudyPlanner.php';
+exigirLogin('../public/login.php');
+
+$db  = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// Reorganizar atrasadas se solicitado
+if (isset($_GET['reorganizar'])) {
+    $planoAtivo = $db->prepare("SELECT id FROM planos_estudo WHERE usuario_id=? AND ativo=1 LIMIT 1");
+    $planoAtivo->execute([$uid]);
+    $pid = $planoAtivo->fetchColumn();
+    if ($pid) {
+        $planner = new StudyPlanner();
+        $count   = $planner->reorganizarAtrasadas((int)$pid);
+        flashMsg('success', "$count tarefa(s) reagendada(s) com sucesso!");
+    }
+    redirect(APP_URL.'/aluno/plano_estudos.php');
+}
+
+// Buscar plano ativo
+$planoQ = $db->prepare("
+    SELECT p.*, c.nome AS cargo_nome, e.nome_concurso, e.data_prova, e.banca
+    FROM planos_estudo p
+    JOIN cargos c ON c.id = p.cargo_id
+    JOIN editais e ON e.id = c.edital_id
+    WHERE p.usuario_id = ? AND p.ativo = 1
+    ORDER BY p.criado_em DESC LIMIT 1
+");
+$planoQ->execute([$uid]);
+$plano = $planoQ->fetch();
+
+// Buscar todos os planos do usuÃ¡rio para o seletor
+$todosPlanosQ = $db->prepare("
+    SELECT p.id, e.nome_concurso, c.nome AS cargo_nome, p.ativo
+    FROM planos_estudo p
+    JOIN cargos c ON c.id = p.cargo_id
+    JOIN editais e ON e.id = c.edital_id
+    WHERE p.usuario_id = ?
+    ORDER BY p.criado_em DESC
+");
+$todosPlanosQ->execute([$uid]);
+$todosPlanos = $todosPlanosQ->fetchAll();
+
+if (!$plano) {
+    flashMsg('warning','VocÃª ainda nÃ£o possui um plano de estudos. Envie um edital para comeÃ§ar!');
+    redirect(APP_URL.'/aluno/upload_edital.php');
+}
+
+$planoId  = (int)$plano['id'];
+$semana   = $_GET['semana'] ?? 0; // offset de semanas (0=atual, 1=prÃ³xima, -1=anterior)
+$semana   = (int)$semana;
+
+// Calcular intervalo da semana
+$monday  = new DateTime();
+$monday->modify('monday this week')->modify("+{$semana} weeks");
+$sunday  = (clone $monday)->modify('+6 days');
+
+$inicioSem = $monday->format('Y-m-d');
+$fimSem    = $sunday->format('Y-m-d');
+
+// Buscar tarefas da semana
+$tarefasQ = $db->prepare("
+    SELECT t.*, d.nome AS disciplina_nome,
+           CASE WHEN t.data_prevista < CURDATE() AND t.concluida=0 THEN 1 ELSE 0 END AS eh_atrasada
+    FROM tarefas_estudo t
+    JOIN disciplinas d ON d.id = t.disciplina_id
+    WHERE t.plano_id = ? AND t.data_prevista BETWEEN ? AND ?
+    ORDER BY t.data_prevista ASC, t.concluida ASC, t.id ASC
+");
+$tarefasQ->execute([$planoId, $inicioSem, $fimSem]);
+$tarefasSemana = $tarefasQ->fetchAll();
+
+// Agrupar por dia
+$porDia = [];
+for ($i=0; $i<7; $i++) {
+    $d = (clone $monday)->modify("+$i days");
+    $porDia[$d->format('Y-m-d')] = ['data'=>$d,'tarefas'=>[]];
+}
+foreach ($tarefasSemana as $t) {
+    if (isset($porDia[$t['data_prevista']])) {
+        $porDia[$t['data_prevista']]['tarefas'][] = $t;
+    }
+}
+
+// Stats gerais
+$statsQ = $db->prepare("
+    SELECT COUNT(*) AS total, SUM(concluida) AS concluidas,
+           SUM(CASE WHEN data_prevista < CURDATE() AND concluida=0 THEN 1 ELSE 0 END) AS atrasadas,
+           SUM(CASE WHEN data_prevista >= CURDATE() AND concluida=0 THEN 1 ELSE 0 END) AS pendentes
+    FROM tarefas_estudo WHERE plano_id=?
+");
+$statsQ->execute([$planoId]);
+$stats = $statsQ->fetch();
+
+// Progresso por disciplina
+$discProgQ = $db->prepare("
+    SELECT d.nome,
+           COUNT(t.id) AS total,
+           SUM(t.concluida) AS feitas,
+           SUM(t.duracao_minutos) AS minutos_total,
+           SUM(CASE WHEN t.concluida=1 THEN t.duracao_minutos ELSE 0 END) AS minutos_feitos
+    FROM tarefas_estudo t
+    JOIN disciplinas d ON d.id = t.disciplina_id
+    WHERE t.plano_id=? AND t.tipo='estudo'
+    GROUP BY d.id, d.nome
+    ORDER BY feitas DESC
+");
+$discProgQ->execute([$planoId]);
+$discProg = $discProgQ->fetchAll();
+
+$page_title = 'Plano de Estudos';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout" style="position:relative;z-index:1;">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <!-- HEADER -->
+    <div class="d-flex jc-between ai-center mb-md" style="flex-wrap:wrap;gap:1rem;">
+      <div class="page-header" style="margin:0;">
+        <div class="page-breadcrumb">
+          <a href="dashboard.php">Dashboard</a><span class="sep">â€º</span> Plano de Estudos
+        </div>
+        <div class="d-flex ai-center gap-md">
+            <h2 style="margin:0;">ðŸ“… Plano de Estudos</h2>
+            <?php if (count($todosPlanos) > 1): ?>
+            <select class="form-control-hc btn-ghost btn-sm" style="width:auto; height:32px; padding:0 12px; border-color:var(--border-glass); cursor:pointer; background:rgba(255,255,255,0.05);" onchange="trocarPlano(this.value)">
+                <?php foreach($todosPlanos as $tp): ?>
+                <option value="<?= $tp['id'] ?>" <?= $tp['ativo'] ? 'selected' : '' ?>>
+                    <?= sanitize($tp['nome_concurso']) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            <?php endif; ?>
+        </div>
+        <p style="margin:0;"><?= sanitize($plano['nome_concurso']) ?> Â· <?= sanitize($plano['cargo_nome']) ?></p>
+      </div>
+      <div class="d-flex gap-md">
+        <?php if (($stats['atrasadas'] ?? 0) > 0): ?>
+        <a href="?reorganizar=1" class="btn-hc btn-danger-hc btn-sm">
+          Reagendar <?= $stats['atrasadas'] ?> atrasada(s)
+        </a>
+        <?php endif; ?>
+        
+        <!-- BotÃ£o de Refinamento IA -->
+        <button onclick="refinarComIA()" class="btn-hc btn-ai shadow-neon">
+            <i class="bi bi-stars"></i> Refinar com IA (98% precisÃ£o)
+        </button>
+
+        <a href="upload_edital.php" class="btn-hc btn-primary-hc">Novo Plano</a>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="grid-4 mb-md">
+      <?php
+      $total     = (int)($stats['total'] ?? 0);
+      $concluidas= (int)($stats['concluidas'] ?? 0);
+      $atrasadas = (int)($stats['atrasadas'] ?? 0);
+      $pendentes = (int)($stats['pendentes'] ?? 0);
+      $pct = $total > 0 ? round(($concluidas/$total)*100,1) : 0;
+      ?>
+      <div class="kpi-card">
+        <div class="kpi-icon neon"><i class="bi bi-check-circle-fill" style="color:var(--neon-green)"></i></div>
+        <div><div class="kpi-label">ConcluÃ­das</div><div class="kpi-value text-neon"><?= $concluidas ?></div><div class="kpi-sub"><?= $pct ?>% do total</div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon blue"><i class="bi bi-list-task" style="color:var(--accent-blue)"></i></div>
+        <div><div class="kpi-label">Pendentes</div><div class="kpi-value text-blue"><?= $pendentes ?></div><div class="kpi-sub">tarefas restantes</div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon warn"><i class="bi bi-exclamation-triangle-fill" style="color:var(--warning)"></i></div>
+        <div><div class="kpi-label">Atrasadas</div><div class="kpi-value" style="color:var(--danger)"><?= $atrasadas ?></div><div class="kpi-sub"><?= $atrasadas>0?'Precisa reagendar':'Tudo em dia! âœ…' ?></div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon purple"><i class="bi bi-bar-chart-fill" style="color:var(--accent-purple)"></i></div>
+        <div><div class="kpi-label">Progresso Geral</div><div class="kpi-value text-purple"><?= $pct ?>%</div><div class="kpi-sub"><?= $total ?> tarefas no total</div></div>
+      </div>
+    </div>
+
+    <!-- CONTEÃšDO PRINCIPAL -->
+    <div class="grid-2" style="grid-template-columns:1fr 300px;gap:1.5rem;align-items:start;">
+
+      <!-- CALENDÃRIO SEMANAL -->
+      <div class="card-glass">
+        <div class="card-header-hc">
+          <div class="d-flex ai-center gap-md flex-1">
+            <button onclick="mudarSemana(-1)" class="btn-hc btn-ghost btn-sm"><i class="bi bi-chevron-left"></i></button>
+            <h5 style="margin:0;flex:1;text-align:center;">
+              <?= $monday->format('d/m') ?> â€“ <?= $sunday->format('d/m/Y') ?>
+            </h5>
+            <button onclick="mudarSemana(1)" class="btn-hc btn-ghost btn-sm"><i class="bi bi-chevron-right"></i></button>
+          </div>
+          <?php if ($semana !== 0): ?>
+          <a href="?" style="font-size:0.78rem;color:var(--text-muted);margin-left:0.5rem;">Hoje</a>
+          <?php endif; ?>
+        </div>
+        <div class="card-body" style="padding:1rem;">
+          <?php
+          $diasNomes = ['Segunda','TerÃ§a','Quarta','Quinta','Sexta','SÃ¡bado','Domingo'];
+          $hoje2 = date('Y-m-d');
+          $di = 0;
+          foreach ($porDia as $dataStr => $dia):
+            $isHoje = $dataStr === $hoje2;
+            $dtObj  = $dia['data'];
+          ?>
+          <div style="margin-bottom:0.75rem;<?= $isHoje?'border-left:3px solid var(--neon-green);padding-left:0.75rem;':'' ?>">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.4rem;">
+              <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:<?= $isHoje?'var(--neon-green)':'var(--text-muted)' ?>;">
+                <?= $diasNomes[$di] ?> <?= $dtObj->format('d/m') ?>
+                <?php if ($isHoje): ?> <span class="badge-hc badge-neon" style="font-size:0.6rem;padding:2px 6px;">HOJE</span><?php endif; ?>
+              </div>
+              <div style="flex:1;height:1px;background:var(--border-glass);"></div>
+              <span style="font-size:0.72rem;color:var(--text-muted);"><?= count($dia['tarefas']) ?> tarefa(s)</span>
+            </div>
+
+            <?php if (empty($dia['tarefas'])): ?>
+              <div style="padding:0.5rem 0.5rem;font-size:0.8rem;color:var(--text-muted);">Nenhuma tarefa â€“ dia livre ðŸŒ¿</div>
+            <?php else: ?>
+              <?php foreach ($dia['tarefas'] as $t):
+                $done    = (bool)$t['concluida'];
+                $atrsda  = (bool)$t['eh_atrasada'];
+                $tipoIco = ['estudo'=>'book','revisao_24h'=>'arrow-clockwise','revisao_7d'=>'arrow-clockwise','revisao_30d'=>'arrow-clockwise','simulado'=>'patch-question'];
+                $tipoClr = ['estudo'=>'blue','revisao_24h'=>'neon','revisao_7d'=>'neon','revisao_30d'=>'neon','simulado'=>'purple'];
+                $ic  = $tipoIco[$t['tipo']] ?? 'book';
+                $clr = $tipoClr[$t['tipo']] ?? 'blue';
+                $dur = $t['duracao_minutos'] >= 60 ? floor($t['duracao_minutos']/60).'h'.($t['duracao_minutos']%60>0?($t['duracao_minutos']%60).'m':'') : $t['duracao_minutos'].'m';
+              ?>
+              <div class="task-item <?= $done?'done':'' ?> <?= $atrsda?'atrasada':'' ?>"
+                   onclick="toggleTarefa(<?= $t['id'] ?>, this)"
+                   style="margin-bottom:0.35rem;padding:0.65rem 0.85rem;">
+                <div class="task-check">
+                  <?php if($done): ?><i class="bi bi-check-lg"></i><?php endif; ?>
+                </div>
+                <div class="kpi-icon <?= $clr ?>" style="width:32px;height:32px;font-size:0.85rem;flex-shrink:0;">
+                  <i class="bi bi-<?= $ic ?>"></i>
+                </div>
+                <div style="flex:1;">
+                  <div class="task-titulo fw-700" style="font-size:0.85rem;"><?= sanitize($t['disciplina_nome']) ?></div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);"><?= ucfirst(str_replace('_',' ',$t['tipo'])) ?></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                  <?php if ($atrsda): ?><span class="badge-hc badge-danger" style="font-size:0.6rem;">Atrasada</span><?php endif; ?>
+                  <span class="font-mono" style="font-size:0.78rem;color:var(--text-muted);"><?= $dur ?></span>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <?php $di++; endforeach; ?>
+        </div>
+      </div>
+
+      <!-- PAINEL DIREITO: progresso por disciplina -->
+      <div>
+        <div class="card-glass">
+          <div class="card-header-hc"><h5><i class="bi bi-graph-up text-neon"></i> Por Disciplina</h5></div>
+          <div class="card-body">
+            <?php if (empty($discProg)): ?>
+              <p style="color:var(--text-muted);font-size:0.85rem;">Nenhum progresso registrado.</p>
+            <?php else: ?>
+            <?php foreach ($discProg as $dp):
+              $ptotal = (int)$dp['total'];
+              $pfeitas= (int)$dp['feitas'];
+              $ppct   = $ptotal > 0 ? round(($pfeitas/$ptotal)*100) : 0;
+              $minFmt = $dp['minutos_feitos'] >= 60 ? floor($dp['minutos_feitos']/60).'h' : $dp['minutos_feitos'].'min';
+            ?>
+            <div style="margin-bottom:1.1rem;">
+              <div class="d-flex jc-between ai-center" style="margin-bottom:0.3rem;">
+                <span style="font-size:0.83rem;font-weight:600;"><?= sanitize($dp['nome']) ?></span>
+                <span class="font-mono <?= $ppct>=70?'text-neon':($ppct>=40?'text-blue':'text-danger') ?>" style="font-size:0.8rem;font-weight:700;"><?= $ppct ?>%</span>
+              </div>
+              <div class="progress-hc"><div class="progress-bar-fill <?= $ppct>=70?'':($ppct>=40?'progress-blue':'') ?>" style="width:<?= $ppct ?>%"></div></div>
+              <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;"><?= $pfeitas ?>/<?= $ptotal ?> sessÃµes Â· <?= $minFmt ?> estudado</div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <?php if ($plano['data_prova']): ?>
+        <div class="card-glass mt-sm" style="margin-top:1rem;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(168,85,247,0.06));border-color:rgba(59,130,246,0.2);">
+          <div class="card-body" style="text-align:center;">
+            <?php
+            $diff = (new DateTime($plano['data_prova']))->diff(new DateTime());
+            $dias = max(0, $diff->days);
+            ?>
+            <div style="font-size:2rem;font-weight:900;color:var(--accent-blue)"><?= $dias ?></div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">dias para a prova</div>
+            <div style="font-size:0.82rem;font-weight:600;margin-top:0.25rem;"><?= date('d/m/Y', strtotime($plano['data_prova'])) ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function mudarSemana(delta) {
+  const url = new URL(window.location.href);
+  const atual = parseInt(url.searchParams.get('semana') || '0');
+  url.searchParams.set('semana', atual + delta);
+  window.location.href = url.toString();
+}
+async function toggleTarefa(id, el) {
+  const done = el.classList.contains('done');
+  try {
+    const r = await fetch('<?= APP_URL ?>/controllers/tarefa_action.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id, concluida: !done})
+    });
+    const data = await r.json();
+    if(data.ok) {
+      el.classList.toggle('done');
+      const check = el.querySelector('.task-check');
+      check.innerHTML = !done ? '<i class="bi bi-check-lg"></i>' : '';
+    }
+  } catch(e) {}
+}
+
+async function trocarPlano(id) {
+    try {
+        const r = await fetch('<?= APP_URL ?>/controllers/plano_action.php', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({id})
+        });
+        const data = await r.json();
+        if(data.ok) {
+            window.location.href = 'plano_estudos.php';
+        } else {
+            alert('Erro ao trocar plano: ' + data.msg);
+        }
+    } catch(e) {
+        alert('Erro de conexÃ£o ao trocar plano.');
+    }
+}
+
+async function refinarComIA() {
+    const msg = "<?= $_SESSION['plano'] === 'premium' ? 'Deseja refinar seu plano com IA agora?' : 'O refinamento estratÃ©gico consome 1 Token. Deseja continuar?' ?>";
+    if (!confirm(msg)) return;
+
+    window.location.href = '<?= APP_URL ?>/controllers/refinar_plano_ia.php';
+}
+</script>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../login.php');
+
+$db = getDB();
+$usuario_id = $_SESSION['usuario_id'];
+
+// Processar SeleÃ§Ã£o de Concurso - PASSO 2: ImportaÃ§Ã£o Real
+if (isset($_POST['finalizar_selecao'])) {
+    $biblioteca_id = (int)$_POST['biblioteca_id'];
+    $cargo_id_bib  = (int)$_POST['cargo_id'];
+    
+    $edital = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
+    $edital->execute([$biblioteca_id]);
+    $dados = $edital->fetch();
+
+    if ($dados) {
+        try {
+            $db->beginTransaction();
+
+            // 1. Criar edital do usuÃ¡rio
+            $ins = $db->prepare("
+                INSERT INTO editais (usuario_id, nome_concurso, banca, orgao, data_prova, arquivo_pdf, status_processamento, conteudo_texto) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $ins->execute([
+                $usuario_id, $dados['nome_concurso'], $dados['banca'], $dados['orgao'],
+                $dados['data_prova'], $dados['edital_pdf'] ?? 'biblioteca', 'concluido',
+                "Importado da biblioteca: " . $dados['nome_concurso']
+            ]);
+            $novoEditalId = $db->lastInsertId();
+
+            // 2. Criar Cargo
+            $cargoBib = $db->prepare("SELECT nome FROM biblioteca_cargos WHERE id = ?");
+            $cargoBib->execute([$cargo_id_bib]);
+            $nomeCargo = $cargoBib->fetchColumn() ?: 'Geral';
+
+            $insCargo = $db->prepare("INSERT INTO cargos (edital_id, nome, selecionado) VALUES (?, ?, ?)");
+            $insCargo->execute([$novoEditalId, $nomeCargo, 1]);
+            $novoCargoId = $db->lastInsertId();
+
+            // 3. Importar disciplinas E TÃ“PICOS
+            $discQ = $db->prepare("SELECT * FROM biblioteca_disciplinas WHERE biblioteca_cargo_id = ?");
+            $discQ->execute([$cargo_id_bib]);
+            $disciplinas = $discQ->fetchAll();
+
+            $insDisc = $db->prepare("INSERT INTO disciplinas (cargo_id, nome, peso) VALUES (?, ?, ?)");
+            $insTop  = $db->prepare("INSERT INTO topicos_edital (disciplina_id, nome, cobrado_frequentemente) VALUES (?, ?, ?)");
+
+            foreach ($disciplinas as $d) {
+                $insDisc->execute([$novoCargoId, $d['nome'], $d['peso_padrao']]);
+                $novaDiscId = $db->lastInsertId();
+
+                // Buscar tÃ³picos da biblioteca para esta disciplina
+                $topQ = $db->prepare("SELECT * FROM biblioteca_topicos WHERE biblioteca_disciplina_id = ?");
+                $topQ->execute([$d['id']]);
+                $topicos = $topQ->fetchAll();
+
+                foreach ($topicos as $t) {
+                    $incidencia = ($t['incidencia'] === 'alta' ? 1 : 0);
+                    $insTop->execute([$novaDiscId, $t['nome'], $incidencia]);
+                }
+            }
+
+            // 4. Vincular no perfil
+            $db->prepare("UPDATE perfis_usuario SET biblioteca_edital_id = ? WHERE usuario_id = ?")
+               ->execute([$biblioteca_id, $usuario_id]);
+
+            $db->commit();
+
+            flashMsg('success', 'Alvo selecionado! Agora vamos configurar seu diagnÃ³stico de partida.');
+            redirect('diagnostico.php?cargo=' . $novoCargoId);
+        } catch (Exception $e) {
+            $db->rollBack();
+            flashMsg('danger', 'Erro ao importar: ' . $e->getMessage());
+        }
+    }
+}
+
+// PASSO 1.5: SeleÃ§Ã£o de Cargo (Interface)
+$selecionado_id = (int)($_GET['selecionar'] ?? 0);
+$cargos_disponiveis = [];
+if ($selecionado_id) {
+    $cq = $db->prepare("SELECT * FROM biblioteca_cargos WHERE biblioteca_edital_id = ?");
+    $cq->execute([$selecionado_id]);
+    $cargos_disponiveis = $cq->fetchAll();
+    
+    // Se nÃ£o houver cargos cadastrados, cria um "Geral" fictÃ­cio ou permite prosseguir
+    if (empty($cargos_disponiveis)) {
+        // Fallback: se nÃ£o tem cargo na biblioteca, cria um default aqui ou lida como antes
+        // Para seguir a nova regra, vamos forÃ§ar que tenha ao menos um cargo.
+    }
+}
+
+
+// Filtros
+$search = sanitize($_GET['q'] ?? '');
+$cat = sanitize($_GET['cat'] ?? '');
+
+$query = "SELECT * FROM biblioteca_editais WHERE status != 'encerrado'";
+$params = [];
+
+if ($search) {
+    $query .= " AND (nome_concurso LIKE ? OR orgao LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+}
+
+$query .= " ORDER BY criado_em DESC";
+$stmt = $db->prepare($query);
+$stmt->execute($params);
+$editais = $stmt->fetchAll();
+
+$page_title = 'Escolher Concurso - HackConcursos';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header">
+      <div class="page-breadcrumb">
+        <a href="dashboard.php">Dashboard</a>
+        <span class="sep">/</span>
+        <span>Biblioteca de Concursos</span>
+      </div>
+      <h2><i class="bi bi-bullseye text-neon" style="font-size:1.4rem; margin-right:0.5rem; filter: drop-shadow(0 0 5px var(--neon-green-glow));"></i> Escolha seu PrÃ³ximo Alvo</h2>
+      <p>Selecione um dos concursos abaixo para gerar sua estratÃ©gia personalizada.</p>
+    </div>
+
+    <!-- Barra de Busca e Filtros -->
+    <div class="card-glass mb-lg">
+        <div class="card-body">
+            <form method="GET" class="d-flex gap-md ai-center">
+                <div class="input-group-hc flex-1">
+                    <span class="input-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control-hc" placeholder="Buscar por concurso ou Ã³rgÃ£o..." value="<?= $search ?>">
+                </div>
+                <select name="cat" class="form-control-hc" style="width:200px;" onchange="this.form.submit()">
+                    <option value="">Todas Categorias</option>
+                    <option value="Nacional" <?= $cat === 'Nacional' ? 'selected' : '' ?>>Nacional</option>
+                    <option value="Estadual" <?= $cat === 'Estadual' ? 'selected' : '' ?>>Estadual</option>
+                    <option value="Municipal" <?= $cat === 'Municipal' ? 'selected' : '' ?>>Municipal</option>
+                </select>
+                <button type="submit" class="btn-hc btn-primary-hc">Filtrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- OVERLAY DE SELEÃ‡ÃƒO DE CARGO -->
+    <?php if ($selecionado_id && !empty($cargos_disponiveis)): ?>
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:center; justify-content:center; padding:2rem;">
+        <div class="card-glass animate__animated animate__zoomIn" style="max-width:500px; width:100%; border:1px solid var(--accent-blue);">
+            <div class="card-header-hc d-flex jc-between ai-center">
+                <h4 style="margin:0;"><i class="bi bi-person-badge text-blue"></i> Selecione seu Cargo</h4>
+                <a href="biblioteca.php" class="text-muted"><i class="bi bi-x-lg"></i></a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-lg" style="font-size:0.9rem;">As matÃ©rias e o nÃ­vel de profundidade do edital mudam completamente dependendo do cargo escolhido.</p>
+                
+                <form method="POST">
+                    <input type="hidden" name="biblioteca_id" value="<?= $selecionado_id ?>">
+                    <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <?php foreach($cargos_disponiveis as $idx => $cargo): ?>
+                        <label style="cursor:pointer;">
+                            <input type="radio" name="cargo_id" value="<?= $cargo['id'] ?>" style="display:none;" <?= $idx===0?'checked':'' ?> class="cargo-radio">
+                            <div class="cargo-opt card-glass" style="padding:1rem; border:1px solid var(--border-glass); transition:all 0.3s; background:rgba(255,255,255,0.03);">
+                                <div class="d-flex ai-center jc-between">
+                                    <span class="fw-700"><?= sanitize($cargo['nome']) ?></span>
+                                    <i class="bi bi-check-circle-fill check-ico" style="color:var(--accent-blue); opacity:0;"></i>
+                                </div>
+                            </div>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="submit" name="finalizar_selecao" class="btn-hc btn-primary-hc w-100 mt-lg py-3 shadow-neon">
+                        GERAR MINHA ESTRATÃ‰GIA <i class="bi bi-rocket-takeoff"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <style>
+        .cargo-radio:checked + .cargo-opt { border-color: var(--accent-blue) !important; background: rgba(59,130,246,0.1) !important; }
+        .cargo-radio:checked + .cargo-opt .check-ico { opacity: 1 !important; }
+    </style>
+    <?php elseif($selecionado_id): ?>
+        <!-- Script para auto-selecionar se nÃ£o houver cargos (Geral) -->
+        <script>window.location.href = '?selecionar=<?= $selecionado_id ?>&auto=1';</script>
+    <?php endif; ?>
+
+    <!-- Grid de Cards -->
+    <div class="grid-3">
+        <?php if (empty($editais)): ?>
+            <div style="grid-column: span 3; text-align:center; padding:5rem 2rem;">
+                <i class="bi bi-search" style="font-size:3rem; color:var(--text-muted); opacity:0.3;"></i>
+                <h4 class="mt-md">Nenhum concurso encontrado</h4>
+                <p class="text-muted">Tente mudar os termos da busca ou filtros.</p>
+                <a href="biblioteca.php" class="btn-hc btn-ghost mt-md">Limpar Filtros</a>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach($editais as $e): 
+            $imgUrl = !empty($e['imagem']) ? APP_URL . '/' . $e['imagem'] : 'https://placehold.co/800x200/0c1424/22c55e?text=' . urlencode($e['orgao']);
+        ?>
+        <div class="card-glass" style="padding:0; overflow:hidden;">
+            <div style="height:140px; position:relative; overflow:hidden;">
+                <img src="<?= $imgUrl ?>" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">
+                <div style="position:absolute; inset:0; background:linear-gradient(to top, var(--dark-bg), transparent);"></div>
+                <div style="position:absolute; top:1rem; left:1rem;">
+                    <span class="badge-hc <?= $e['status'] == 'aberto' ? 'badge-neon' : 'badge-blue' ?>">
+                        <?= strtoupper($e['status']) ?>
+                    </span>
+                </div>
+            </div>
+            <div class="card-body" style="padding:1.25rem;">
+                <h4 class="lh-sm mb-xs" style="font-size:1.1rem;"><?= sanitize($e['nome_concurso']) ?></h4>
+                <div class="text-muted" style="font-size:0.8rem; margin-bottom:1.5rem;">
+                    <div class="d-flex jc-between mb-xs">
+                        <span><i class="bi bi-bank"></i> Ã“rgÃ£o: <?= sanitize($e['orgao']) ?></span>
+                        <span class="text-white fw-700"><?= sanitize($e['abrangencia'] ?? 'Nacional') ?></span>
+                    </div>
+                    <div class="d-flex jc-between mb-xs">
+                        <span><i class="bi bi-briefcase"></i> Banca: <?= sanitize($e['banca']) ?></span>
+                        <span class="text-neon fw-700"><?= $e['numero_vagas'] ?? 'A definir' ?> vagas</span>
+                    </div>
+                    <?php if($e['data_prova']): ?>
+                        <span style="display:block;"><i class="bi bi-calendar-event"></i> Prova: <?= date('d/m/Y', strtotime($e['data_prova'])) ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="d-flex jc-between ai-center">
+                    <div class="text-neon fw-700" style="font-size:0.75rem;">
+                        <i class="bi bi-lightning-charge-fill"></i> IA PRONTA
+                    </div>
+                    <a href="?selecionar=<?= $e['id'] ?>" class="btn-hc btn-primary-hc btn-sm">Selecionar</a>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Banner Premium Upgrade -->
+    <div class="card-glass mt-lg" style="border: 1px solid var(--accent-purple2); background: linear-gradient(90deg, rgba(168,85,247,0.05), transparent);">
+        <div class="card-body d-flex ai-center jc-between">
+            <div>
+                <h4 class="text-purple"><i class="bi bi-stars"></i> NÃ£o encontrou seu concurso?</h4>
+                <p class="text-muted" style="max-width:500px;">Seja <strong>Premium</strong> e suba qualquer edital em PDF para nossa IA processar exclusivamente para vocÃª.</p>
+            </div>
+            <?php if ($_SESSION['plano'] === 'premium'): ?>
+                <a href="upload_edital.php" class="btn-hc btn-ai">Subir Edital PDF</a>
+            <?php else: ?>
+                <a href="meu_plano.php" class="btn-hc btn-ai">Upgrade Modo Guerra</a>
+            <?php endif; ?>
+        </div>
+    </div>
+
+  </main>
+</div>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../login.php');
+
+$db = getDB();
+$tarefaId = (int)($_GET['id'] ?? 0);
+
+// Buscar dados da missÃ£o para contexto
+$st = $db->prepare("
+    SELECT t.*, d.nome as disciplina_nome, tp.nome as topico_nome, e.banca
+    FROM tarefas_estudo t
+    JOIN disciplinas d ON d.id = t.disciplina_id
+    JOIN planos_estudo p ON p.id = t.plano_id
+    JOIN cargos c ON c.id = p.cargo_id
+    JOIN editais e ON e.id = c.edital_id
+    LEFT JOIN topicos_edital tp ON tp.id = t.topico_id
+    WHERE t.id = ? AND p.usuario_id = ?
+");
+$st->execute([$tarefaId, $_SESSION['usuario_id']]);
+$missao = $st->fetch();
+
+if (!$missao) {
+    flashMsg('danger', 'MissÃ£o nÃ£o encontrada.');
+    redirect('dashboard.php');
+}
+
+$page_title = 'DiagnÃ³stico EstratÃ©gico de Erro';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout">
+    <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+    <main class="main-content">
+        
+        <div class="page-header">
+            <div class="page-breadcrumb">
+                <a href="dashboard.php">Dashboard</a>
+                <span class="sep">/</span>
+                <span>AnÃ¡lise de PadrÃ£o</span>
+            </div>
+            <h2><i class="bi bi-cpu text-neon"></i> Scanner de PadrÃµes de Erro</h2>
+            <p>A IA analisarÃ¡ seus erros para detectar falhas de memorizaÃ§Ã£o, interpretaÃ§Ã£o ou tÃ¡ticas da banca.</p>
+        </div>
+
+        <div class="grid-2" style="grid-template-columns: 1fr 350px; gap: 2rem;">
+            
+            <div class="card-glass">
+                <div class="card-body">
+                    <div class="mb-lg p-3" style="background:rgba(255,255,255,0.02); border-radius:var(--radius-md); border-left:4px solid var(--accent-blue);">
+                        <h5 class="mb-xs"><?= sanitize($missao['topico_nome'] ?: $missao['disciplina_nome']) ?></h5>
+                        <p class="text-muted small">Banca Alvo: <strong><?= sanitize($missao['banca']) ?></strong></p>
+                    </div>
+
+                    <form id="formDiagnostico">
+                        <input type="hidden" id="feedbackTaskId" value="<?= $tarefaId ?>">
+                        
+                        <div class="mb-md">
+                            <label class="form-label fw-700 text-white">Escolha a Abordagem da IA:</label>
+                            <div class="d-flex gap-md">
+                                <label class="flex-1">
+                                    <input type="radio" name="variacao" value="tecnica" checked style="display:none;" class="var-radio">
+                                    <div class="var-opt card-glass p-3 text-center" style="cursor:pointer; border:1px solid var(--border-glass);">
+                                        <div class="fw-700 small">TÃ‰CNICA</div>
+                                        <div class="text-muted" style="font-size:0.6rem;">Auditoria de Dados</div>
+                                    </div>
+                                </label>
+                                <label class="flex-1">
+                                    <input type="radio" name="variacao" value="emocional" style="display:none;" class="var-radio">
+                                    <div class="var-opt card-glass p-3 text-center" style="cursor:pointer; border:1px solid var(--border-glass);">
+                                        <div class="fw-700 small">PROVOCATIVA</div>
+                                        <div class="text-muted" style="font-size:0.6rem;">Treinador de Elite</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <label class="form-label fw-700 text-white">O que aconteceu nessa missÃ£o?</label>
+                        <p class="text-muted small mb-sm">Cole as questÃµes que errou ou descreva o que foi difÃ­cil.</p>
+                        
+                        <textarea id="textoErro" class="form-control-hc" rows="8" placeholder="Ex: Confundi os prazos de anulaÃ§Ã£o..." style="background:rgba(0,0,0,0.3);"></textarea>
+
+                        <div class="mt-lg d-flex jc-between ai-center">
+                            <button type="submit" class="btn-hc btn-ai w-100 py-3 shadow-neon">
+                                INICIAR SCANNER ESTRATÃ‰GICO <i class="bi bi-magic"></i>
+                            </button>
+                        </div>
+                    </form>
+
+                    <style>
+                        .var-radio:checked + .var-opt { border-color: var(--neon-green) !important; background: rgba(34,197,94,0.1) !important; }
+                    </style>
+                </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:1.5rem;">
+                <div class="card-glass" style="border-color:var(--accent-purple);">
+                    <div class="card-body">
+                        <h6 class="text-purple fw-900 mb-sm">POR QUE USAR?</h6>
+                        <ul class="text-muted small" style="padding-left:1rem; margin:0;">
+                            <li class="mb-xs">Pare de errar pelo mesmo motivo.</li>
+                            <li class="mb-xs">Diferencie conceitos "irmÃ£os".</li>
+                            <li>Aprenda a ler as entrelinhas da banca <strong><?= sanitize($missao['banca']) ?></strong>.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div id="loadingIa" style="display:none; text-align:center; padding:2rem;">
+                    <div class="loader-spinner mb-md" style="width:40px; height:40px; border-top-color:var(--neon-green);"></div>
+                    <p class="text-neon fw-700 animate__animated animate__pulse animate__infinite">IA ANALISANDO PADRÃ•ES...</p>
+                </div>
+
+                <div id="resultadoIa" class="animate__animated animate__fadeIn" style="display:none;">
+                    <!-- Resultado via JS -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+</div>
+
+<script>
+document.getElementById('formDiagnostico').onsubmit = async function(e) {
+    e.preventDefault();
+    const texto = document.getElementById('textoErro').value;
+    if(!texto) return alert("Por favor, descreva seus erros para anÃ¡lise.");
+
+    document.getElementById('loadingIa').style.display = 'block';
+    document.getElementById('resultadoIa').style.display = 'none';
+
+    try {
+        const variacao = document.querySelector('input[name="variacao"]:checked').value;
+        const r = await fetch('<?= APP_URL ?>/controllers/ai_diagnostico_erro.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                tarefa_id: <?= $tarefaId ?>,
+                texto_erro: texto,
+                variacao: variacao
+            })
+        });
+        const res = await r.json();
+        
+        document.getElementById('loadingIa').style.display = 'none';
+        
+        if(res.ok) {
+            exibirResultado(res.analise);
+        } else {
+            alert(res.msg);
+        }
+    } catch(err) {
+        alert("Erro ao processar diagnÃ³stico.");
+        document.getElementById('loadingIa').style.display = 'none';
+    }
+};
+
+function exibirResultado(analise) {
+    const resDiv = document.getElementById('resultadoIa');
+    resDiv.style.display = 'block';
+    resDiv.innerHTML = `
+        <div class="card-glass" style="border:1px solid var(--neon-green); background:rgba(34,197,94,0.05);">
+            <div class="card-body">
+                <h5 class="text-neon mb-md"><i class="bi bi-shield-check"></i> Resultado do Scanner</h5>
+                <div class="text-white small lh-lg">
+                    ${analise}
+                </div>
+                <button onclick="location.href='dashboard.php'" class="btn-hc btn-ghost btn-sm w-100 mt-lg">VOLTAR AO PLANO</button>
+            </div>
+        </div>
+    `;
+}
+</script>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../public/login.php');
+
+$db  = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// Buscar edital e cargo selecionado do usuÃ¡rio para saber o que simular
+$cargoQ = $db->prepare("
+    SELECT c.id, c.nome AS cargo_nome, e.nome_concurso 
+    FROM cargos c
+    JOIN editais e ON e.id = c.edital_id
+    WHERE e.usuario_id = ? AND c.selecionado = 1
+    LIMIT 1
+");
+$cargoQ->execute([$uid]);
+$cargoAtivo = $cargoQ->fetch();
+
+// Buscar histÃ³rico de simulados do usuÃ¡rio
+$simuladosQ = $db->prepare("
+    SELECT s.*, c.nome AS cargo_nome
+    FROM simulados s
+    JOIN cargos c ON c.id = s.cargo_id
+    WHERE s.usuario_id = ? 
+    ORDER BY s.criado_em DESC
+");
+$simuladosQ->execute([$uid]);
+$historicoSimulados = $simuladosQ->fetchAll();
+
+// Buscar disciplinas do cargo para o modal de novo simulado
+$disciplinas = [];
+if ($cargoAtivo) {
+    $discQ = $db->prepare("SELECT id, nome FROM disciplinas WHERE cargo_id = ?");
+    $discQ->execute([$cargoAtivo['id']]);
+    $disciplinas = $discQ->fetchAll();
+}
+
+$page_title = 'Simulados';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout" style="position:relative;z-index:1;">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header d-flex jc-between ai-center">
+      <div>
+        <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">â€º</span> Simulados</div>
+        <h2><i class="bi bi-journal-check text-blue"></i> Meus Simulados</h2>
+        <p>Pratique com questÃµes reais e geradas por inteligÃªncia tÃ¡tica.</p>
+      </div>
+      <?php if ($cargoAtivo): ?>
+      <button class="btn-hc btn-primary-hc btn-lg" onclick="openModal('modal-novo-simulado')">
+        Novo Simulado
+      </button>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!$cargoAtivo): ?>
+    <div class="card-glass" style="text-align:center;padding:3rem;">
+      <div style="font-size:3rem;margin-bottom:1rem;"><i class="bi bi-file-earmark-text text-muted"></i></div>
+      <h3>Nenhum edital selecionado</h3>
+      <p style="color:var(--text-secondary);margin:0.75rem 0 1.5rem;">VocÃª precisa configurar um edital e cargo antes de gerar simulados.</p>
+      <a href="upload_edital.php" class="btn-hc btn-primary-hc">Enviar Edital</a>
+    </div>
+    <?php else: ?>
+
+    <div class="grid-4 mb-md">
+      <!-- KPIs RÃ¡pidos -->
+      <?php
+      $totalRealizados = count($historicoSimulados);
+      $mediaAcertos = 0;
+      if ($totalRealizados > 0) {
+          $somaPcts = array_sum(array_map(function($s){ return $s['total_questoes'] > 0 ? ($s['acertos']/$s['total_questoes'])*100 : 0; }, $historicoSimulados));
+          $mediaAcertos = round($somaPcts / $totalRealizados, 1);
+      }
+      ?>
+      <div class="kpi-card">
+        <div class="kpi-icon blue"><i class="bi bi-clipboard-check"></i></div>
+        <div>
+          <div class="kpi-label">Realizados</div>
+          <div class="kpi-value"><?= $totalRealizados ?></div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon neon"><i class="bi bi-target"></i></div>
+        <div>
+          <div class="kpi-label">MÃ©dia de Acertos</div>
+          <div class="kpi-value text-neon"><?= $mediaAcertos ?>%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-glass">
+      <div class="card-header-hc">
+        <h5><i class="bi bi-clock-history text-muted"></i> HistÃ³rico de Simulados</h5>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <?php if (empty($historicoSimulados)): ?>
+          <div style="text-align:center;padding:3rem;color:var(--text-muted);">
+            <p>VocÃª ainda nÃ£o realizou nenhum simulado.</p>
+          </div>
+        <?php else: ?>
+          <table class="table-hc">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>TÃ­tulo / Cargo</th>
+                <th>QuestÃµes</th>
+                <th>Desempenho</th>
+                <th>Tempo</th>
+                <th>AÃ§Ã£o</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($historicoSimulados as $sim): 
+                $pct = $sim['total_questoes'] > 0 ? round(($sim['acertos'] / $sim['total_questoes']) * 100) : 0;
+                $cor = $pct >= 70 ? 'text-neon' : ($pct >= 50 ? 'text-warning' : 'text-danger');
+              ?>
+              <tr>
+                <td><?= date('d/m/Y', strtotime($sim['criado_em'])) ?></td>
+                <td>
+                  <div class="fw-700"><?= sanitize($sim['titulo']) ?></div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);"><?= sanitize($sim['cargo_nome']) ?></div>
+                </td>
+                <td><?= $sim['total_questoes'] ?></td>
+                <td>
+                  <span class="<?= $cor ?> fw-700"><?= $sim['acertos'] ?> acertos</span>
+                  <div style="font-size:0.7rem;color:var(--text-muted);">Aproveitamento: <?= $pct ?>%</div>
+                </td>
+                <td><?= $sim['tempo_minutos'] ?> min</td>
+                <td>
+                  <div class="d-flex ai-center gap-sm">
+                    <a href="simulado_view.php?id=<?= $sim['id'] ?>" class="btn-hc btn-ghost btn-sm">Ver Detalhes</a>
+                    <button class="btn-hc btn-sm" 
+                            style="background:rgba(239,68,68,0.1); color:var(--danger); border:1px solid rgba(239,68,68,0.2);"
+                            onclick="excluirSimulado(<?= $sim['id'] ?>)"
+                            title="Excluir Simulado">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <?php endif; ?>
+
+  </main>
+</div>
+
+<!-- MODAL NOVO SIMULADO -->
+<div class="modal-overlay" id="modal-novo-simulado" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h5 style="margin:0;"><i class="bi bi-play-circle-fill text-neon"></i> Iniciar Novo Simulado</h5>
+      <button class="modal-close" onclick="closeModal('modal-novo-simulado')">&times;</button>
+    </div>
+    <form id="form-novo-simulado">
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);font-size:0.88rem;margin-bottom:1.5rem;">
+          Configure seu simulado tÃ¡tico. As questÃµes serÃ£o geradas com base no seu cargo atual: <strong><?= sanitize($cargoAtivo['cargo_nome'] ?? '') ?></strong>.
+        </p>
+        
+        <div class="form-group mb-md">
+          <label class="form-label fw-700">TÃ­tulo do Simulado</label>
+          <input type="text" name="titulo" class="form-control-hc" placeholder="Ex: Simulado Semanal FGV" required>
+        </div>
+
+        <div class="row-hc mb-md" style="display:flex; gap:1rem;">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label fw-700">Banca Examinadora</label>
+            <select name="banca" class="form-control-hc">
+                <option value="FGV">FGV</option>
+                <option value="CESPE">CESPE / Cebraspe</option>
+                <option value="FCC">FCC</option>
+                <option value="VUNESP">VUNESP</option>
+                <option value="OUTRA">Outra (GenÃ©rica)</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label fw-700">Dificuldade</label>
+            <select name="dificuldade" class="form-control-hc">
+                <option value="facil">BÃ¡sico</option>
+                <option value="media" selected>IntermediÃ¡rio</option>
+                <option value="dificil">AvanÃ§ado (Elite)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Disciplinas (Deixe vazio para todas)</label>
+          <div style="max-height:150px;overflow-y:auto;border:1px solid var(--border-glass);padding:0.75rem;border-radius:var(--radius-md);background:rgba(255,255,255,0.02);">
+            <?php foreach ($disciplinas as $d): ?>
+            <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;cursor:pointer;font-size:0.85rem;">
+              <input type="checkbox" name="disciplinas[]" value="<?= $d['id'] ?>" checked>
+              <?= sanitize($d['nome']) ?>
+            </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Quantidade de QuestÃµes</label>
+          <select name="quantidade" class="form-control-hc">
+            <option value="5">5 questÃµes (Express)</option>
+            <option value="10" selected>10 questÃµes (PadrÃ£o)</option>
+            <option value="20">20 questÃµes (Intenso)</option>
+            <option value="50">50 questÃµes (Simulado Real)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-hc btn-ghost" onclick="closeModal('modal-novo-simulado')">Cancelar</button>
+        <button type="submit" class="btn-hc btn-primary-hc">Gerar Simulado <i class="bi bi-lightning-charge-fill"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// FunÃ§Ã£o para excluir simulado
+async function excluirSimulado(id) {
+    if (!confirm('Deseja realmente apagar este simulado? Esta aÃ§Ã£o removerÃ¡ tambÃ©m o seu histÃ³rico de acertos para esta prova e nÃ£o pode ser desfeita.')) return;
+
+    try {
+        const response = await fetch('../controllers/simulado_delete.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        
+        const text = await response.text();
+        let res;
+        try {
+            res = JSON.parse(text);
+        } catch (e) {
+            alert('Erro CrÃ­tico no Servidor: ' + text.substring(0, 200) + '...');
+            return;
+        }
+
+        if (res.ok) {
+            location.reload();
+        } else {
+            alert('Erro ao excluir: ' + res.msg);
+        }
+    } catch (err) {
+        alert('Erro ao processar exclusÃ£o.');
+    }
+}
+
+document.getElementById('form-novo-simulado').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader-spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;"></span> Gerando...';
+    
+    const formData = new FormData(this);
+    const data = {
+        titulo: formData.get('titulo'),
+        quantidade: formData.get('quantidade'),
+        banca: formData.get('banca'),
+        dificuldade: formData.get('dificuldade'),
+        disciplinas: formData.getAll('disciplinas[]')
+    };
+
+    try {
+        const response = await fetch('<?= APP_URL ?>/controllers/simulado_action.php?action=gerar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const responseText = await response.text();
+        let res;
+        try {
+            res = JSON.parse(responseText);
+        } catch (e) {
+            alert('Erro de GeraÃ§Ã£o (Resposta InvÃ¡lida): ' + responseText.substring(0, 200) + '...');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+        
+        if (res.ok) {
+            window.location.href = 'simulado_view.php?id=' + res.simulado_id;
+        } else {
+            alert('Erro: ' + res.msg);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (err) {
+        alert('Erro ao conectar com o servidor.');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+});
+</script>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../public/login.php');
+
+$db  = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// 1. Dados do UsuÃ¡rio (Plano e Tokens)
+$usrQ = $db->prepare("SELECT plano, token_saldo FROM usuarios WHERE id = ?");
+$usrQ->execute([$uid]);
+$usr = $usrQ->fetch();
+
+// 2. Buscar edital selecionado no perfil
+$perfilQ = $db->prepare("SELECT biblioteca_edital_id FROM perfis_usuario WHERE usuario_id = ?");
+$perfilQ->execute([$uid]);
+$perfil = $perfilQ->fetch();
+
+$edital = null;
+if ($perfil && $perfil['biblioteca_edital_id']) {
+    $editQ = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
+    $editQ->execute([$perfil['biblioteca_edital_id']]);
+    $edital = $editQ->fetch();
+} else {
+    // Fallback para upload antigo se nÃ£o houver da biblioteca
+    $editQ = $db->prepare("SELECT * FROM editais WHERE usuario_id=? AND ativo=1 ORDER BY criado_em DESC LIMIT 1");
+    $editQ->execute([$uid]);
+    $edital = $editQ->fetch();
+}
+
+// 3. Buscar histÃ³rico de chat
+$historico = [];
+if ($edital) {
+    $edital_id = $perfil['biblioteca_edital_id'] ?? $edital['id'];
+    $hq = $db->prepare("SELECT papel, mensagem, criado_em FROM mensagens_chat WHERE usuario_id=? AND (edital_id=? OR edital_id IS NULL) ORDER BY criado_em ASC LIMIT 50");
+    $hq->execute([$uid, $edital_id]);
+    $historico = $hq->fetchAll();
+}
+
+$page_title = 'Mentor IA - HackConcursos';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout" style="position:relative;z-index:1;">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header">
+      <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">â€º</span> Tira-DÃºvidas</div>
+      <h2><i class="bi bi-chat-dots text-blue"></i> Mentor Hack IA</h2>
+      <p>Seu mentor pessoal para dÃºvidas de matÃ©rias, estratÃ©gia de estudos e edital.</p>
+    </div>
+
+    <?php if (!$edital): ?>
+    <div class="alert alert-info-hc mb-4">
+      <i class="bi bi-info-circle"></i> VocÃª estÃ¡ no modo <strong>Mentor Geral</strong>. Envie um edital em <a href="upload_edital.php" class="text-white fw-700">Meus Concursos</a> para receber orientaÃ§Ãµes especÃ­ficas sobre um concurso.
+    </div>
+    <?php endif; ?>
+
+    <div class="grid-2" style="grid-template-columns:1fr 280px;gap:1.5rem;align-items:start;">
+
+      <!-- CHAT -->
+      <div class="card-glass" style="display:flex;flex-direction:column;height:600px;">
+        <!-- Header do chat -->
+        <div class="card-header-hc" style="border-bottom: 1px solid var(--border-glass);">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--neon-green),var(--accent-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 15px rgba(34,197,94,0.3);"><i class="bi bi-robot text-white"></i></div>
+          <div style="margin-left:0.5rem;">
+            <div class="fw-800" style="font-size:1rem; letter-spacing:-0.01em;">Mentor EstratÃ©gico IA</div>
+            <?php if ($usr['plano'] === 'premium'): ?>
+                <div style="font-size:0.75rem;color:var(--neon-green); font-weight:700;"><i class="bi bi-lightning-charge-fill"></i> MODO GUERRA ATIVO</div>
+            <?php else: ?>
+                <div style="font-size:0.75rem;color:var(--accent-purple); font-weight:700;"><i class="bi bi-shield-lock"></i> Mentor IA (Consome Tokens)</div>
+            <?php endif; ?>
+          </div>
+          
+          <div style="margin-left:auto; display:flex; gap:0.75rem; align-items:center;">
+             <div class="badge-hc badge-purple" id="token-badge">
+                <i class="bi bi-coin"></i> <span id="token-count"><?= $usr['plano'] === 'premium' ? 'âˆž' : $usr['token_saldo'] ?></span> Tokens
+             </div>
+             <button class="btn-hc btn-ghost btn-sm" onclick="limparChat()" title="Limpar conversa">
+                <i class="bi bi-trash"></i>
+             </button>
+          </div>
+        </div>
+
+        <!-- Mensagens -->
+        <div class="chat-messages" id="chat-messages">
+          <!-- Mensagem inicial do bot -->
+          <div class="msg-bubble msg-ai">
+            <div class="ai-icon"><i class="bi bi-robot"></i> Mentor Hack</div>
+            OlÃ¡! Sou seu <strong>Mentor Hack IA</strong>. <i class="bi bi-cpu-fill text-neon"></i><br>
+            Estou aqui para te ajudar a dominar as matÃ©rias, criar estratÃ©gias de estudo imbatÃ­veis ou tirar dÃºvidas especÃ­ficas sobre o seu concurso. O que vamos aprender hoje?
+          </div>
+
+          <!-- HistÃ³rico -->
+          <?php foreach ($historico as $msg): ?>
+          <div class="msg-bubble <?= $msg['papel'] === 'user' ? 'msg-user' : 'msg-ai' ?>">
+            <?php if($msg['papel'] === 'model'): ?><div class="ai-icon"><i class="bi bi-robot"></i> Assistente</div><?php endif; ?>
+            <?= nl2br(sanitize($msg['mensagem'])) ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+
+        <!-- SugestÃµes rÃ¡pidas -->
+        <div id="sugestoes" style="padding:0.5rem 1rem;border-top:1px solid var(--border-glass);display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <?php
+          $sugestoes = [
+            'Como posso memorizar melhor?',
+            'O que Ã© a tÃ©cnica Pomodoro?',
+            'Estou desmotivado, o que fazer?',
+            'Qual o meu progresso hoje?',
+            'Me faÃ§a 3 questÃµes sobre o edital'
+          ];
+          foreach ($sugestoes as $s):
+          ?>
+          <button onclick="enviarSugestao('<?= htmlspecialchars($s, ENT_QUOTES) ?>')" class="btn-hc btn-ghost" style="font-size:0.75rem;padding:0.3rem 0.65rem;border-radius:var(--radius-full);">
+            <?= $s ?>
+          </button>
+          <?php endforeach; ?>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input-area">
+          <textarea id="chat-input" class="form-control-hc" rows="1" placeholder="DÃ­vidas de matÃ©rias, estratÃ©gia ou edital..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviar();}"></textarea>
+          <button class="btn-hc btn-ai" onclick="enviar()" id="btn-enviar">
+            Enviar
+          </button>
+        </div>
+      </div>
+
+      <!-- PAINEL LATERAL -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <!-- Info do edital -->
+        <div class="card-glass">
+          <div class="card-header-hc"><h5><i class="bi bi-file-text text-blue"></i> Seu Edital</h5></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:0.65rem;">
+            <div>
+              <div class="form-label">Concurso</div>
+              <div class="fw-700 text-blue" style="font-size:0.9rem;"><?= sanitize($edital['nome_concurso'] ?? 'Mentor Geral') ?></div>
+            </div>
+            <?php if ($edital && !empty($edital['data_prova'])): ?>
+            <div><div class="form-label">Data da Prova</div>
+              <div class="fw-700 text-neon"><i class="bi bi-calendar-event"></i> <?= date('d/m/Y', strtotime($edital['data_prova'])) ?></div>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <!-- SugestÃµes de EstratÃ©gia -->
+        <div class="card-glass">
+          <div class="card-header-hc"><h5><i class="bi bi-rocket-takeoff-fill text-neon"></i> EstratÃ©gia Hack</h5></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:0.4rem;">
+            <?php
+            $cats = [
+              ['<i class="bi bi-lightbulb"></i>','TÃ©cnicas de Estudo', 'Quais as melhores tÃ©cnicas para estudar exatas?'],
+              ['<i class="bi bi-graph-up-arrow"></i>','Prioridades IA','Com base no meu progresso, o que devo priorizar?'],
+              ['<i class="bi bi-stopwatch"></i>','GestÃ£o de Tempo','Como organizar meu tempo se sÃ³ tenho 2 horas?'],
+              ['<i class="bi bi-file-earmark-text"></i>','AnÃ¡lise de Edital','Explique os critÃ©rios de desempate deste edital.'],
+            ];
+            foreach ($cats as [$ico,$cat,$q]):
+            ?>
+            <button onclick="enviarSugestao('<?= htmlspecialchars($q,ENT_QUOTES) ?>')"
+                    style="display:flex;align-items:center;gap:0.65rem;background:transparent;border:1px solid var(--border-glass);border-radius:var(--radius-md);padding:0.55rem 0.75rem;cursor:pointer;transition:all 0.2s;text-align:left;color:var(--text-secondary);font-size:0.82rem;font-family:var(--font-main);"
+                    onmouseover="this.style.borderColor='var(--accent-purple)';this.style.color='var(--accent-purple)'"
+                    onmouseout="this.style.borderColor='var(--border-glass)';this.style.color='var(--text-secondary)'">
+              <span><?= $ico ?></span><?= $cat ?>
+            </button>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const editalId = <?= $edital ? (int)$edital['id'] : 0 ?>;
+const msgs = document.getElementById('chat-messages');
+
+function scrollBottom() {
+  if(msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+scrollBottom();
+
+function addMsg(texto, tipo) {
+  const div = document.createElement('div');
+  div.className = 'msg-bubble ' + (tipo === 'user' ? 'msg-user' : 'msg-ai');
+  
+  if (tipo === 'ai') {
+    const lbl = document.createElement('div');
+    lbl.className = 'ai-icon';
+    lbl.textContent = 'ðŸ¤– Mentor Hack';
+    div.appendChild(lbl);
+  }
+
+  // Renderizador de Artefatos
+  let finalHtml = texto;
+
+  // 1. Renderizar [WARN]
+  finalHtml = finalHtml.replace(/\[WARN\]([\s\S]*?)\[\/WARN\]/g, (match, content) => {
+    return `<div class="card-warn-ia"><i class="bi bi-exclamation-triangle-fill"></i> ${content}</div>`;
+  });
+
+  // 2. Renderizar [TASKS]
+  finalHtml = finalHtml.replace(/\[TASKS\]([\s\S]*?)\[\/TASKS\]/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      let list = `<div class="card-tasks-ia"><h6><i class="bi bi-check2-all"></i> ${data.titulo || 'MissÃµes Recomendadas'}</h6><ul>`;
+      data.missoes.forEach(m => {
+        list += `<li><label><input type="checkbox"> <span>${m}</span></label></li>`;
+      });
+      list += '</ul></div>';
+      return list;
+    } catch(e) { return `<pre>${jsonStr}</pre>`; }
+  });
+
+  // 3. Renderizar [PLAN]
+  finalHtml = finalHtml.replace(/\[PLAN\]([\s\S]*?)\[\/PLAN\]/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      let table = `<div class="card-plan-ia"><h6><i class="bi bi-calendar3"></i> ${data.titulo || 'Plano EstratÃ©gico'}</h6><table><thead><tr><th>Foco</th><th>AÃ§Ã£o</th></tr></thead><tbody>`;
+      data.linhas.forEach(l => {
+        table += `<tr><td><strong>${l.item}</strong></td><td>${l.desc}</td></tr>`;
+      });
+      table += '</tbody></table></div>';
+      return table;
+    } catch(e) { return `<pre>${jsonStr}</pre>`; }
+  });
+
+  div.innerHTML += finalHtml.replace(/\n/g,'<br>');
+  msgs.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+function addTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg-bubble msg-ai';
+  div.id = 'typing';
+  div.innerHTML = '<div class="ai-icon">ðŸ¤– Assistente</div><span style="display:flex;gap:4px;align-items:center;"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
+  msgs.appendChild(div);
+  scrollBottom();
+}
+function removeTyping() {
+  const el = document.getElementById('typing');
+  if(el) el.remove();
+}
+
+async function enviar() {
+  const inp = document.getElementById('chat-input');
+  const pergunta = inp.value.trim();
+  if (!pergunta) return;
+
+  addMsg(pergunta, 'user');
+  inp.value = '';
+  document.getElementById('sugestoes').style.display = 'none';
+
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  addTyping();
+
+  try {
+    const r = await fetch('<?= APP_URL ?>/controllers/chat_action.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({pergunta, edital_id: editalId})
+    });
+    const data = await r.json();
+    removeTyping();
+    if (data.ok) {
+      addMsg(data.resposta, 'ai');
+      // Atualizar contador de tokens
+      if (document.getElementById('token-count')) {
+          document.getElementById('token-count').textContent = data.tokens_restantes;
+      }
+    } else {
+      if (data.paywall) {
+          addMsg('ðŸš¨ <strong>Seus tokens acabaram!</strong><br>Para continuar recebendo orientaÃ§Ãµes estratÃ©gicas de 98% de precisÃ£o, vocÃª precisa de mais crÃ©ditos.', 'ai');
+          setTimeout(() => {
+              if(confirm('Seus tokens acabaram. Deseja comprar mais agora?')) {
+                  location.href = 'meu_plano.php';
+              }
+          }, 1500);
+      } else {
+          addMsg('âš ï¸ ' + data.msg, 'ai');
+      }
+    }
+  } catch(e) {
+    removeTyping();
+    addMsg('âŒ Erro de conexÃ£o. Tente novamente.', 'ai');
+  }
+  btn.disabled = false;
+}
+
+function enviarSugestao(txt) {
+  document.getElementById('chat-input').value = txt;
+  enviar();
+}
+
+function limparChat() {
+  if (!confirm('Limpar todo o histÃ³rico de conversa?')) return;
+  fetch('<?= APP_URL ?>/controllers/chat_action.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({limpar:true, edital_id: editalId})
+  });
+  msgs.querySelectorAll('.msg-bubble:not(:first-child)').forEach(el=>el.remove());
+}
+
+// Estilo dos componentes IA
+const style = document.createElement('style');
+style.textContent = `
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);animation:blink 1.2s infinite both;}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+  
+  .card-warn-ia { background: rgba(239,68,68,0.1); border-left: 4px solid #ef4444; padding: 1rem; border-radius: 8px; margin: 0.5rem 0; color: #fca5a5; font-size: 0.9rem; font-weight: 600; }
+  
+  .card-tasks-ia { background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; padding: 1rem; margin: 0.75rem 0; }
+  .card-tasks-ia h6 { color: var(--neon-green); margin-bottom: 0.75rem; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px; }
+  .card-tasks-ia ul { list-style: none; padding: 0; margin: 0; }
+  .card-tasks-ia li { margin-bottom: 0.5rem; }
+  .card-tasks-ia label { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--text-primary); }
+  .card-tasks-ia input[type="checkbox"] { margin-top: 0.2rem; accent-color: var(--neon-green); }
+  .card-tasks-ia input:checked + span { text-decoration: line-through; opacity: 0.6; }
+
+  .card-plan-ia { background: var(--dark-card); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem; margin: 0.75rem 0; overflow-x: auto; }
+  .card-plan-ia h6 { color: var(--accent-blue); margin-bottom: 0.75rem; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; }
+  .card-plan-ia table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .card-plan-ia th { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border-glass); color: var(--text-muted); font-weight: 600; }
+  .card-plan-ia td { padding: 0.65rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .card-plan-ia tr:last-child td { border-bottom: none; }
+`;
+document.head.appendChild(style);
+</script>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../public/login.php');
+
+$db  = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// Buscar filtro por disciplina se houver
+$tag = sanitize($_GET['tag'] ?? '');
+
+$sql = "SELECT * FROM produtos WHERE ativo = 1";
+$params = [];
+if (!empty($tag)) {
+    $sql .= " AND (disciplina_tag = ? OR nome LIKE ?)";
+    $params[] = $tag;
+    $params[] = "%$tag%";
+}
+$sql .= " ORDER BY criado_em DESC";
+
+$pq = $db->prepare($sql);
+$pq->execute($params);
+$produtos = $pq->fetchAll();
+
+// Se nÃ£o houver produtos, vamos inserir o Arsenal de Elite (Mocks Modo Guerra)
+if (empty($produtos) && empty($tag)) {
+    $mocks = [
+        ['Modo Sprint 48h (IA)', 'A IA identifica o que vocÃª NÃƒO precisa estudar e compacta seu edital para as prÃ³ximas 48h.', 'acelerador', 47.00, 'https://placehold.co/600x400/0c1424/22c55e?text=MODO+SPRINT'],
+        ['Escudo Anti-Banca (DossiÃª)', 'AnÃ¡lise profunda dos padrÃµes de pegadinhas da banca do seu concurso.', 'estrategia', 39.90, 'https://placehold.co/600x400/0c1424/3b82f6?text=ANTI-BANCA'],
+        ['CÃ©lula de Energia (Pack 50)', 'Recarregue sua Stamina EstratÃ©gica para mais 50 consultas profundas ao Mentor IA.', 'energia', 25.00, 'https://placehold.co/600x400/0c1424/fbbf24?text=ENERGIA+IA'],
+        ['Mapeamento Preditivo', 'O que tem 92% de chance de estar na sua prova baseado em dados histÃ³ricos.', 'acelerador', 89.00, 'https://placehold.co/600x400/0c1424/a855f7?text=PREDITIVO']
+    ];
+    $ins = $db->prepare("INSERT INTO produtos (nome, descricao, disciplina_tag, preco, imagem) VALUES (?,?,?,?,?)");
+    foreach ($mocks as $m) $ins->execute($m);
+    
+    // Recarregar
+    $pq->execute();
+    $produtos = $pq->fetchAll();
+}
+
+$page_title = 'Materiais';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout" style="position:relative;z-index:1;">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header d-flex jc-between ai-center">
+      <div>
+        <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">â€º</span> Arsenal</div>
+        <h2><i class="bi bi-rocket-takeoff text-neon" style="margin-right:0.5rem;"></i> Arsenal de Elite</h2>
+        <p>Atalhos estratÃ©gicos para reduzir seu tempo atÃ© a aprovaÃ§Ã£o.</p>
+      </div>
+      <div class="d-flex gap-md">
+         <div class="input-group-hc" style="width:250px;">
+            <i class="bi bi-search input-icon"></i>
+            <form action="" method="GET">
+                <input type="text" name="tag" class="form-control-hc" placeholder="Filtrar por matÃ©ria..." value="<?= $tag ?>">
+            </form>
+         </div>
+      </div>
+    </div>
+
+    <!-- Filtros RÃ¡pidos -->
+    <div style="display:flex; gap:0.6rem; margin-bottom:2rem; overflow-x:auto; padding-bottom:0.5rem;" class="hide-scrollbar">
+        <a href="loja.php" class="chip <?= empty($tag) ? 'active' : '' ?>">Todos</a>
+        <a href="?tag=acelerador" class="chip <?= $tag=='acelerador'?'active':'' ?>"><i class="bi bi-rocket-takeoff"></i> Aceleradores</a>
+        <a href="?tag=energia" class="chip <?= $tag=='energia'?'active':'' ?>"><i class="bi bi-lightning-charge"></i> Energia</a>
+        <a href="?tag=estrategia" class="chip <?= $tag=='estrategia'?'active':'' ?>"><i class="bi bi-shield-lock"></i> EstratÃ©gia</a>
+    </div>
+
+    <div class="grid-3">
+        <?php foreach ($produtos as $p): ?>
+        <div class="card-glass feature-card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+            <div style="height:180px; width:100%; overflow:hidden; position:relative;">
+                <img src="<?= $p['imagem'] ?>" alt="<?= sanitize($p['nome']) ?>" style="width:100%; height:100%; object-fit:cover;">
+                <div style="position:absolute; top:1rem; right:1rem;">
+                    <?php if ($p['disciplina_tag'] === 'acelerador'): ?>
+                        <span class="badge-hc" style="background:var(--neon-green); color:#000; font-weight:900;">ACELERADOR</span>
+                    <?php else: ?>
+                        <span class="badge-hc badge-purple">ESTRATÃ‰GICO</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="card-body" style="flex:1; display:flex; flex-direction:column; padding:1.25rem;">
+                <div class="d-flex jc-between ai-center mb-xs">
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;"><?= sanitize($p['disciplina_tag']) ?></span>
+                    <div style="display:flex; gap:2px; color:var(--warning); font-size:0.8rem;">
+                        <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                    </div>
+                </div>
+                <h4 style="font-size:1.15rem; margin-bottom:0.6rem;"><?= sanitize($p['nome']) ?></h4>
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.5rem; flex:1;">
+                    <?= sanitize($p['descricao']) ?>
+                </p>
+                <div class="d-flex jc-between ai-center mt-auto" style="border-top:1px solid var(--border-glass); padding-top:1rem;">
+                    <div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Por apenas</div>
+                        <div class="fw-800 text-neon" style="font-size:1.4rem;">R$ <?= number_format($p['preco'], 2, ',', '.') ?></div>
+                    </div>
+                    <button class="btn-hc btn-primary-hc btn-sm" onclick="alert('Funcionalidade de compra em breve!')">
+                        Comprar
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Banner Cupom -->
+    <div class="card-glass mt-lg" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border: 1px solid rgba(34,197,94,0.4); padding: 3rem; position: relative; overflow: hidden; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+        <!-- Efeito de brilho sutil no fundo -->
+        <div style="position:absolute; top:-50%; left:-20%; width:300px; height:300px; background:radial-gradient(circle, rgba(34,197,94,0.15), transparent 70%); z-index:0;"></div>
+        
+        <div style="position:relative; z-index:1;">
+            <div class="badge-hc" style="background:rgba(34,197,94,0.2); color:#22c55e; border:1px solid #22c55e; margin-bottom:1rem; padding:4px 12px; font-weight:700; font-size:0.7rem; letter-spacing:1px;">PROMOÃ‡ÃƒO DE LANÃ‡AMENTO</div>
+            <h3 style="margin-bottom:0.75rem; font-size:2rem; color:#ffffff; font-weight:900; letter-spacing:-0.02em;">Cupom de 20% OFF em qualquer material</h3>
+            <p style="color:rgba(255,255,255,0.8); max-width:550px; font-size:1.1rem; line-height:1.5;">
+                Use o cÃ³digo <strong style="color:#22c55e; font-weight:900;">HACKER20</strong> no checkout e acelere sua preparaÃ§Ã£o agora mesmo.
+            </p>
+        </div>
+        
+        <!-- Ãcone decorativo posicionado e dimensionado melhor -->
+        <div style="position:absolute; right:3rem; top:50%; transform:translateY(-50%); color:rgba(255,255,255,0.05); font-size:10rem; pointer-events:none;">
+            <i class="bi bi-ticket-perforated"></i>
+        </div>
+    </div>
+
+  </main>
+</div>
+
+<style>
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.chip.active { background: rgba(34,197,94,0.15); border-color: var(--neon-green); color: var(--neon-green); }
+</style>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../login.php');
+
+$db = getDB();
+$usuario_id = $_SESSION['usuario_id'];
+
+// --- LÃ“GICA DE SINCRONIZAÃ‡ÃƒO AUTOMÃTICA (Fallback para Localhost) ---
+if (isset($_GET['session_id'])) {
+    $session_id = $_GET['session_id'];
+    
+    // Consultar Stripe para ver se essa sessÃ£o estÃ¡ paga
+    $ch = curl_init("https://api.stripe.com/v1/checkout/sessions/$session_id");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERPWD, STRIPE_SECRET_KEY . ':');
+    $res = curl_exec($ch);
+    $session_data = json_decode($res, true);
+    curl_close($ch);
+
+    if (isset($session_data['payment_status']) && $session_data['payment_status'] === 'paid') {
+        $tipo = $session_data['metadata']['tipo'] ?? 'assinatura';
+        
+        // Verificar se jÃ¡ processamos essa sessÃ£o (para nÃ£o duplicar)
+        // No MVP vamos apenas processar, mas o ideal Ã© salvar o session_id no banco
+        if ($tipo === 'tokens') {
+            $db->prepare("UPDATE usuarios SET token_saldo = token_saldo + 50 WHERE id = ?")->execute([$usuario_id]);
+            $db->prepare("INSERT INTO token_transacoes (usuario_id, tipo, quantidade, descricao) VALUES (?, 'compra', 50, 'SincronizaÃ§Ã£o Direta Stripe')")->execute([$usuario_id]);
+        } else {
+            $db->prepare("UPDATE usuarios SET plano = 'premium', status_assinatura = 'ativa' WHERE id = ?")->execute([$usuario_id]);
+        }
+        flashMsg('success', 'Pagamento sincronizado e crÃ©ditos liberados!');
+    }
+}
+// --- FIM DA SINCRONIZAÃ‡ÃƒO ---
+
+// Buscar dados atualizados do usuÃ¡rio
+$stmt = $db->prepare("SELECT nome, email, plano, token_saldo, status_assinatura FROM usuarios WHERE id = ?");
+$stmt->execute([$usuario_id]);
+$u = $stmt->fetch();
+
+$page_title = 'Meu Plano e Tokens - HackConcursos';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header">
+      <h2>ðŸ’³ GestÃ£o de Plano e CrÃ©ditos</h2>
+      <p>Gerencie sua assinatura e seu saldo de tokens para IA.</p>
+    </div>
+
+    <?php if (isset($_GET['success'])): ?>
+        <div class="alert-hc alert-success mb-lg">
+            <i class="bi bi-check-circle"></i> Pagamento confirmado com sucesso! Seu saldo/plano foi atualizado.
+        </div>
+    <?php endif; ?>
+
+    <div class="grid-2">
+        <!-- Card: Plano Atual -->
+        <div class="card-glass">
+            <div class="card-header-hc">
+                <h5>Plano Atual</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex ai-center jc-between mb-md">
+                    <div>
+                        <h3 class="<?= $u['plano'] === 'premium' ? 'text-neon' : '' ?>">
+                            <?= $u['plano'] === 'premium' ? 'MODO GUERRA' : 'Plano Gratuito' ?>
+                        </h3>
+                        <span class="badge-hc <?= $u['status_assinatura'] === 'ativa' ? 'badge-neon' : 'badge-blue' ?>">
+                            <?= strtoupper($u['status_assinatura'] ?: 'FREE') ?>
+                        </span>
+                    </div>
+                    <div style="font-size:3rem;">
+                        <?= $u['plano'] === 'premium' ? 'âš¡' : 'ðŸ›¡ï¸' ?>
+                    </div>
+                </div>
+
+                <?php if ($u['plano'] !== 'premium'): ?>
+                    <p class="text-muted mb-lg">VocÃª estÃ¡ usando a versÃ£o limitada. Desbloqueie o potencial mÃ¡ximo da IA.</p>
+                    <a href="../planos.php" class="btn-hc btn-neon w-100">Fazer Upgrade</a>
+                <?php else: ?>
+                    <p class="text-muted mb-lg">VocÃª tem acesso ilimitado a todas as ferramentas estratÃ©gicas.</p>
+                    <button class="btn-hc btn-ghost w-100" disabled>Assinatura Ativa</button>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Card: Tokens IA -->
+        <div class="card-glass">
+            <div class="card-header-hc">
+                <h5>Saldo de Tokens IA</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex ai-center jc-between mb-md">
+                    <div>
+                        <div class="kpi-label">Tokens DisponÃ­veis</div>
+                        <div class="kpi-value text-purple" style="font-size:3rem;"><?= $u['token_saldo'] ?></div>
+                    </div>
+                    <div style="font-size:3rem;">ðŸª™</div>
+                </div>
+                
+                <p class="text-muted mb-lg">Cada consulta profunda ao Mentor IA ou Refinamento de EstratÃ©gia consome 1 token.</p>
+                
+                <a href="../controllers/stripe_checkout.php?tipo=tokens" class="btn-hc btn-ai w-100">
+                    Comprar +50 Tokens (R$ 29)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- HistÃ³rico de TransaÃ§Ãµes -->
+    <div class="card-glass mt-lg">
+        <div class="card-header-hc">
+            <h5>HistÃ³rico de CrÃ©ditos</h5>
+        </div>
+        <div class="card-body" style="padding:0;">
+            <?php
+            $trans = $db->prepare("SELECT * FROM token_transacoes WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT 10");
+            $trans->execute([$usuario_id]);
+            $logs = $trans->fetchAll();
+            ?>
+            <table class="table-hc">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Qtd</th>
+                        <th>DescriÃ§Ã£o</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($logs as $l): ?>
+                    <tr>
+                        <td><?= date('d/m/Y H:i', strtotime($l['criado_em'])) ?></td>
+                        <td>
+                            <span class="badge-hc <?= $l['tipo'] === 'compra' ? 'badge-neon' : ($l['tipo'] === 'bonus' ? 'badge-purple' : 'badge-red') ?>">
+                                <?= strtoupper($l['tipo']) ?>
+                            </span>
+                        </td>
+                        <td><?= $l['quantidade'] ?></td>
+                        <td class="text-muted"><?= sanitize($l['descricao']) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($logs)): ?>
+                        <tr><td colspan="4" class="text-center text-muted py-md">Nenhuma transaÃ§Ã£o encontrada.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+  </main>
+</div>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+require_once __DIR__ . '/../config/config.php';
+exigirLogin('../public/login.php');
+
+$db  = getDB();
+$uid = (int)$_SESSION['usuario_id'];
+
+// Carregar dados completos do usuÃ¡rio e perfil
+$userQ = $db->prepare("
+    SELECT u.*, p.horas_dia, p.dias_semana, p.objetivo, p.nivel_geral, p.sequencia_dias, p.total_horas
+    FROM usuarios u
+    LEFT JOIN perfis_usuario p ON p.usuario_id = u.id
+    WHERE u.id = ?
+");
+$userQ->execute([$uid]);
+$usr = $userQ->fetch();
+
+// Buscar conquistas
+$conqQ = $db->prepare("SELECT * FROM conquistas WHERE usuario_id = ? ORDER BY conquistada_em DESC");
+$conqQ->execute([$uid]);
+$conquistas = $conqQ->fetchAll();
+
+// Mocks de conquistas se nÃ£o houver
+if (empty($conquistas)) {
+   $mocks = [
+       ['primeiro_edital', 'Primeiro Passo', 'Enviou o primeiro edital para o Hack.', 'ðŸ“œ'],
+       ['streak_3', 'Sem Parar', 'Estudou por 3 dias seguidos.', 'ðŸ”¥'],
+       ['simulado_100', 'Mestre Supremo', 'Gabaritou um simulado tÃ¡tico.', 'ðŸŽ“']
+   ];
+   $ins = $db->prepare("INSERT INTO conquistas (usuario_id, tipo, titulo, descricao, icone) VALUES (?,?,?,?,?)");
+   foreach ($mocks as $m) $ins->execute(array_merge([$uid], $m));
+   
+   $conqQ->execute([$uid]);
+   $conquistas = $conqQ->fetchAll();
+}
+
+$page_title = 'Meu Perfil';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="dashboard-layout" style="position:relative;z-index:1;">
+  <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
+  <main class="main-content">
+
+    <div class="page-header">
+      <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">â€º</span> Perfil</div>
+      <h2>âš™ï¸ ConfiguraÃ§Ãµes de Perfil</h2>
+      <p>Gerencie seus dados pessoais, preferÃªncias de estudo e veja suas conquistas.</p>
+    </div>
+
+    <div class="grid-2" style="grid-template-columns: 320px 1fr; gap: 2rem; align-items: start;">
+        <!-- Coluna Esquerda: Avatar e Stats -->
+        <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <div class="card-glass" style="text-align:center; padding:2rem;">
+                <div style="position:relative; width:120px; height:120px; margin:0 auto 1.5rem;">
+                    <div style="width:100%; height:100%; border-radius:50%; background:linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); display:flex; align-items:center; justify-content:center; font-size:3rem; font-weight:800; color:#fff; border:4px solid var(--border-glass);">
+                        <?= strtoupper(substr($usr['nome'], 0, 1)) ?>
+                    </div>
+                    <button class="btn-hc btn-primary-hc btn-sm" style="position:absolute; bottom:0; right:0; padding:0.3rem; border-radius:50%; width:32px; height:32px;">
+                        Editar
+                    </button>
+                </div>
+                <h3 style="margin-bottom:0.25rem;"><?= sanitize($usr['nome']) ?></h3>
+                <div class="badge-hc badge-purple mb-md">PLANO <?= strtoupper($usr['plano']) ?></div>
+                
+                <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:var(--radius-md); text-align:left;">
+                    <div class="d-flex jc-between mb-xs">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">E-mail:</span>
+                        <span style="font-size:0.85rem; font-weight:600;"><?= sanitize($usr['email']) ?></span>
+                    </div>
+                    <div class="d-flex jc-between">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Membro desde:</span>
+                        <span style="font-size:0.85rem; font-weight:600;"><?= date('d/m/Y', strtotime($usr['criado_em'])) ?></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats RÃ¡pidos -->
+            <div class="card-glass" style="padding:1.5rem;">
+                <h5 class="mb-md">Desempenho</h5>
+                <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                    <div class="d-flex jc-between ai-center">
+                        <span style="font-size:0.85rem; color:var(--text-secondary);">Total Horas</span>
+                        <span class="fw-800 text-neon"><?= number_format($usr['total_horas'], 1) ?>h</span>
+                    </div>
+                    <div class="d-flex jc-between ai-center">
+                        <span style="font-size:0.85rem; color:var(--text-secondary);">SequÃªncia</span>
+                        <span class="fw-800 text-warning"> <?= $usr['sequencia_dias'] ?> Dias</span>
+                    </div>
+                    <div class="d-flex jc-between ai-center">
+                        <span style="font-size:0.85rem; color:var(--text-secondary);">NÃ­vel</span>
+                        <span class="badge-hc badge-blue"><?= ucfirst($usr['nivel_geral']) ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna Direita: Forms e Conquistas -->
+        <div style="display:flex; flex-direction:column; gap:2rem;">
+            <!-- Tabs Mock -->
+            <div class="card-glass">
+                <div class="card-header-hc" style="display:flex; gap:1.5rem; border-bottom:1px solid var(--border-glass);">
+                    <button class="tab-btn active" onclick="switchTab('dados')">Meus Dados</button>
+                    <button class="tab-btn" onclick="switchTab('conquistas')">Minhas Conquistas</button>
+                    <button class="tab-btn" onclick="switchTab('seguranca')">SeguranÃ§a</button>
+                </div>
+                
+                <!-- TAB: DADOS -->
+                <div class="card-body tab-content" id="tab-dados">
+                    <form action="" method="POST">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Nome Completo</label>
+                                <input type="text" class="form-control-hc" value="<?= sanitize($usr['nome']) ?>" name="nome">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">E-mail</label>
+                                <input type="email" class="form-control-hc" value="<?= sanitize($usr['email']) ?>" readonly style="opacity:0.6; cursor:not-allowed;">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Objetivo de Estudo (Ex: Concurso PF)</label>
+                            <input type="text" class="form-control-hc" value="<?= sanitize($usr['objetivo']) ?>" name="objetivo" placeholder="Para qual Ã³rgÃ£o ou cargo vocÃª foca?">
+                        </div>
+                        <div class="d-flex jc-end mt-sm">
+                            <button type="button" class="btn-hc btn-primary-hc" onclick="alert('Dados atualizados (demonstraÃ§Ã£o)')">Salvar AlteraÃ§Ãµes</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- TAB: CONQUISTAS -->
+                <div class="card-body tab-content" id="tab-conquistas" style="display:none;">
+                    <div class="grid-2">
+                        <?php foreach ($conquistas as $c): ?>
+                        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:1rem; display:flex; gap:1rem; align-items:center;">
+                            <div style="font-size:2rem; width:50px; height:50px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.2); border-radius:50%;">
+                                <?= $c['icone'] ?>
+                            </div>
+                            <div style="flex:1;">
+                                <div class="fw-700" style="font-size:0.9rem;"><?= sanitize($c['titulo']) ?></div>
+                                <div style="font-size:0.75rem; color:var(--text-secondary);"><?= sanitize($c['descricao']) ?></div>
+                                <div style="font-size:0.65rem; color:var(--text-muted); margin-top:0.25rem;">Conquistado em <?= date('d/m/Y', strtotime($c['conquistada_em'])) ?></div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <!-- TAB: SEGURANÃ‡A -->
+                <div class="card-body tab-content" id="tab-seguranca" style="display:none;">
+                    <form action="" method="POST">
+                        <div class="form-group">
+                            <label class="form-label">Senha Atual</label>
+                            <input type="password" class="form-control-hc" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Nova Senha</label>
+                                <input type="password" class="form-control-hc" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Confirmar Nova Senha</label>
+                                <input type="password" class="form-control-hc" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+                            </div>
+                        </div>
+                        <div class="d-flex jc-end mt-sm">
+                            <button type="button" class="btn-hc btn-danger-hc" onclick="alert('Funcionalidade em desenvolvimento')">Alterar Senha</button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+  </main>
+</div>
+
+<style>
+.tab-btn {
+    background:none; border:none; color:var(--text-muted); padding:1.25rem 0.5rem; font-weight:700; font-size:0.85rem; text-transform:uppercase; cursor:pointer; position:relative; transition:all 0.2s;
+}
+.tab-btn.active { color:var(--accent-blue); }
+.tab-btn.active::after {
+    content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:var(--accent-blue);
+}
+.tab-btn:hover { color:var(--text-primary); }
+</style>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById('tab-' + tab).style.display = 'block';
+    event.target.classList.add('active');
+}
+</script>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php
+// Includes e configuraÃ§Ãµes globais
+$config_path = __DIR__ . '/../../config/config.php';
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../config/config.php';
+}
+require_once $config_path;
+iniciarSessao();
+
+// Flash message
+$flash = getFlash();
+
+// UsuÃ¡rio logado info
+$usuario_nome = $_SESSION['usuario_nome'] ?? 'UsuÃ¡rio';
+$usuario_perfil = $_SESSION['perfil'] ?? 'aluno';
+$usuario_plano = $_SESSION['plano'] ?? 'free';
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <!-- Aplicar tema antes do render para evitar flash -->
+  <script>
+    (function(){
+      const t = localStorage.getItem('hc_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><?= isset($page_title) ? sanitize($page_title) . ' | ' : '' ?>HackConcursos</title>
+  <meta name="description" content="<?= isset($page_desc) ? sanitize($page_desc) : 'Plataforma de estudos inteligente para concursos pÃºblicos. IA que transforma editais em planos de estudo personalizados.' ?>">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Bootstrap 5 CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Design System HackConcursos -->
+  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/style.css?v=<?= time() ?>">
+  <?php if (isset($extra_css)) echo $extra_css; ?>
+</head>
+<body>
+<?php if ($flash): ?>
+<div id="flash-msg" class="alert-hc alert-<?= $flash['tipo'] ?>" style="position:fixed;top:1rem;right:1rem;z-index:9999;max-width:380px;">
+  <i class="bi bi-<?= $flash['tipo'] === 'success' ? 'check-circle' : ($flash['tipo'] === 'danger' ? 'x-circle' : 'info-circle') ?>"></i>
+  <?= sanitize($flash['msg']) ?>
+</div>
+<script>
+  setTimeout(() => {
+    const el = document.getElementById('flash-msg');
+    if(el) { el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(),400); }
+  }, 4000);
+</script>
+<?php endif; ?>

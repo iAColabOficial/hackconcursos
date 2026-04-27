@@ -1,0 +1,112 @@
+Disc: Português
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Muitas frases apresentam uma mistura de fatos e opiniões. Assinale a alternativa em que o segmento sublinhado representa uma opinião do autor, e não um fato objetivo.
+            [alternativa_a] => A reunião do conselho ocorreu na última segunda-feira.
+            [alternativa_b] => O relatório final possui mais de duzentas páginas impressas.
+            [alternativa_c] => O palestrante utilizou recursos audiovisuais modernos.
+            [alternativa_d] => A proposta apresentada pelo diretor foi extremamente confusa.
+            [alternativa_e] => Os funcionários receberam o comunicado por correio eletrônico.
+            [gabarito] => D
+            [explicacao] => Para a FGV, fatos são dados objetivos e verificáveis. Opiniões são marcadas por adjetivos ou advérbios valorativos (subjetivos). O termo 'extremamente confusa' expressa um juízo de valor do emissor, enquanto as demais alternativas descrevem ações ou estados concretos.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Considere a seguinte frase: 'O projeto apresentava falhas estruturais, contudo foi aprovado pela comissão técnica'. A conjunção sublinhada estabelece uma relação de sentido que pode ser corretamente substituída por:
+            [alternativa_a] => portanto.
+            [alternativa_b] => entretanto.
+            [alternativa_c] => porquanto.
+            [alternativa_d] => conquanto.
+            [alternativa_e] => visto que.
+            [gabarito] => B
+            [explicacao] => A conjunção 'contudo' é adversativa, indicando oposição/contraste. 'Entretanto' pertence ao mesmo grupo semântico. O examinador FGV frequentemente usa 'conquanto' (concessiva) e 'porquanto' (causal/explicativa) como distratores para confundir o candidato pela semelhança gráfica.
+        )
+
+)
+Disc: Direito Constitucional
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Maria, cidadã brasileira, após diversas tentativas administrativas infrutíferas, teve negado o acesso a informações relativas à sua própria pessoa, constantes de registros de um órgão público federal. Diante da resistência da autoridade em fornecer os dados pessoais, Maria busca assistência jurídica para garantir o conhecimento de tais informações. De acordo com a Constituição Federal de 1988, o remédio constitucional adequado para assegurar o conhecimento de informações relativas à pessoa do impetrante, constantes de registros ou bancos de dados de entidades governamentais, é o:
+            [alternativa_a] => Mandado de Segurança.
+            [alternativa_b] => Habeas Data.
+            [alternativa_c] => Habeas Corpus.
+            [alternativa_d] => Mandado de Injunção.
+            [alternativa_e] => Ação Popular.
+            [gabarito] => B
+            [explicacao] => O Habeas Data é o remédio constitucional previsto no Art. 5º, LXXII, 'a', da CF/88, destinado especificamente a assegurar o conhecimento de informações relativas à pessoa do impetrante. O erro comum é confundir com o Mandado de Segurança, que possui caráter subsidiário (resíduo), não sendo cabível quando a situação é protegida por Habeas Data ou Habeas Corpus.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => O Município 'Alfa' editou uma lei municipal que obriga as agências bancárias situadas em seu território a instalarem biombos ou divisórias individuais nos caixas de atendimento, visando conferir maior privacidade e segurança aos usuários. Uma instituição financeira questionou a validade da norma, alegando que a matéria seria de competência exclusiva da União por envolver o sistema financeiro. À luz da repartição de competências estabelecida na Constituição Federal de 1988 e da jurisprudência dos Tribunais Superiores, a referida lei municipal é:
+            [alternativa_a] => Inconstitucional, pois compete privativamente à União legislar sobre o sistema monetário e financeiro.
+            [alternativa_b] => Constitucional, pois o Município possui competência para legislar sobre assuntos de interesse local, o que inclui o conforto e a segurança dos consumidores em estabelecimentos bancários.
+            [alternativa_c] => Inconstitucional, pois a competência para legislar sobre consumo é concorrente apenas entre a União, os Estados e o Distrito Federal.
+            [alternativa_d] => Constitucional, desde que o Estado-membro em que se localiza o Município tenha editado lei autorizativa prévia.
+            [alternativa_e] => Inconstitucional, por violar o princípio da livre iniciativa e a competência da União para organizar o trabalho.
+            [gabarito] => B
+            [explicacao] => A questão aborda a competência legislativa municipal (Art. 30, I, CF/88). Segundo o STF (Súmula Vinculante 38 e precedentes), o Município é competente para legislar sobre questões de interesse local, como tempo de espera em filas e itens de segurança/conforto em bancos, pois isso não se confunde com a regulação do sistema financeiro (que é da União).
+        )
+
+)
+Disc: Direito Administrativo
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => João, Prefeito do Município 'Alpha', decide inaugurar uma grande escola municipal. Para dar visibilidade à sua gestão e garantir dividendos políticos para sua futura reeleição, ordena que seja instalada uma placa na fachada da instituição com sua fotografia oficial e os dizeres: 'Obra realizada pelo Prefeito João, o amigo do povo'. À luz dos princípios constitucionais expressos que regem a Administração Pública, a conduta de João fere diretamente o princípio da:
+            [alternativa_a] => Eficiência, pois o gasto com a placa não traz retorno prático ao ensino.
+            [alternativa_b] => Impessoalidade, que veda a promoção pessoal de autoridades em publicidade de obras públicas.
+            [alternativa_c] => Legalidade, uma vez que não existe lei que autorize o uso de fotografias em escolas.
+            [alternativa_d] => Publicidade, pois o ato de divulgar a obra deveria ser feito apenas em diário oficial.
+            [alternativa_e] => Autotutela, pois a administração não poderia rever seus próprios atos de inauguração.
+            [gabarito] => B
+            [explicacao] => O Art. 37, §1º da CF/88 estabelece que a publicidade dos atos, programas, obras, serviços e campanhas dos órgãos públicos deverá ter caráter educativo, informativo ou de orientação social, dela não podendo constar nomes, símbolos ou imagens que caracterizem promoção pessoal de autoridades ou servidores públicos, o que fundamenta o princípio da Impessoalidade.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => O Estado 'Beta' pretende descentralizar a prestação de um serviço público de natureza técnica, optando pela criação de uma nova entidade para integrar sua Administração Indireta. De acordo com as normas constitucionais vigentes sobre a organização administrativa, a criação de uma autarquia e a autorização para a instituição de uma empresa pública dependem, respectivamente, de:
+            [alternativa_a] => Decreto do Chefe do Executivo e Lei Complementar.
+            [alternativa_b] => Lei específica e Lei específica.
+            [alternativa_c] => Lei ordinária e Decreto legislativo.
+            [alternativa_d] => Portaria ministerial e Lei complementar.
+            [alternativa_e] => Lei complementar e Lei ordinária.
+            [gabarito] => B
+            [explicacao] => Conforme o Art. 37, XIX, da CF/88, somente por lei específica poderá ser criada autarquia e autorizada a instituição de empresa pública, de sociedade de economia mista e de fundação, cabendo à lei complementar, neste último caso, definir as áreas de sua atuação. Portanto, ambas exigem lei específica (uma para criar e outra para autorizar).
+        )
+
+)
+Disc: Informática
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => João, um assistente administrativo recém-contratado, está organizando os arquivos de sua repartição em um computador com o sistema operacional Windows 10, configuração padrão em português. Ao manipular arquivos armazenados em um pendrive (unidade de armazenamento removível), João seleciona um documento PDF e pressiona a tecla 'Delete' do seu teclado. Com base no funcionamento padrão do Windows, assinale a alternativa que descreve corretamente o que ocorre com o arquivo.
+            [alternativa_a] => O arquivo é movido para a Lixeira do Windows, podendo ser restaurado a qualquer momento pelo usuário.
+            [alternativa_b] => O Windows solicita uma confirmação para mover o arquivo para a Lixeira da Unidade Removível.
+            [alternativa_c] => O arquivo é excluído permanentemente, sem ser enviado para a Lixeira, devido à natureza da unidade de armazenamento.
+            [alternativa_d] => O arquivo é compactado automaticamente para economizar espaço, permanecendo no pendrive em estado oculto.
+            [alternativa_e] => A exclusão é bloqueada pelo sistema, pois arquivos em unidades removíveis só podem ser apagados através do comando 'Shift + Delete'.
+            [gabarito] => C
+            [explicacao] => Hack FGV: No Windows, por padrão, arquivos excluídos de unidades removíveis (pendrives, cartões de memória) NÃO vão para a Lixeira; eles são excluídos permanentemente de imediato. A Lixeira é reservada para unidades de disco rígido locais (HD/SSD).
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Maria utiliza o navegador Google Chrome em seu ambiente de trabalho para realizar pesquisas técnicas. Visando manter a organização de sua estação de trabalho, ela decide utilizar o recurso de 'Navegação Anônima' (Modo Incógnito). Sobre o comportamento do navegador durante o uso desse recurso, assinale a afirmativa correta.
+            [alternativa_a] => O provedor de acesso à Internet e o administrador da rede local deixam de ter acesso aos sites visitados por Maria.
+            [alternativa_b] => O Google Chrome não salvará o histórico de navegação, os cookies e os dados de sites, bem como as informações inseridas em formulários.
+            [alternativa_c] => Todos os arquivos baixados (downloads) e os favoritos criados durante a sessão são automaticamente excluídos ao fechar a janela anônima.
+            [alternativa_d] => O endereço IP da máquina de Maria é mascarado, impedindo que os sites visitados identifiquem sua localização geográfica.
+            [alternativa_e] => A navegação anônima ativa automaticamente uma conexão VPN (Virtual Private Network) para criptografar todo o tráfego de saída.
+            [gabarito] => B
+            [explicacao] => Hack FGV: O modo anônimo foca na privacidade LOCAL (quem usa o mesmo PC não vê o que você fez). Ele limpa histórico, cookies e formulários ao fechar. Contudo, ele NÃO garante anonimato na rede (IP visível), NÃO esconde dados do patrão/provedor e MANTÉM downloads e favoritos feitos durante a sessão.
+        )
+
+)

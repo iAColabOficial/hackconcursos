@@ -5,63 +5,99 @@ exigirLogin('../login.php');
 $db = getDB();
 $usuario_id = $_SESSION['usuario_id'];
 
-// Processar Seleção de Concurso
-if (isset($_GET['selecionar'])) {
-    $biblioteca_id = (int)$_GET['selecionar'];
+// Processar Seleção de Concurso - PASSO 2: Importação Real
+if (isset($_POST['finalizar_selecao'])) {
+    $biblioteca_id = (int)$_POST['biblioteca_id'];
+    $cargo_id_bib  = (int)$_POST['cargo_id'];
     
-    // Verificar se existe
-    $edital = $db->prepare("SELECT * FROM lib_editais WHERE id = ?");
+    $edital = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
     $edital->execute([$biblioteca_id]);
     $dados = $edital->fetch();
 
     if ($dados) {
         try {
-            // 1. Criar um registro na tabela 'editais' do usuário baseado na biblioteca
-            // Isso permite que o usuário tenha sua própria cópia para personalizar se necessário
+            $db->beginTransaction();
+
+            // 1. Criar edital do usuário
             $ins = $db->prepare("
-                INSERT INTO editais (usuario_id, nome_concurso, banca, status, conteudo_texto) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO editais (usuario_id, nome_concurso, banca, orgao, data_prova, arquivo_pdf, status_processamento, conteudo_texto) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $ins->execute([
-                $usuario_id, 
-                $dados['nome_concurso'], 
-                $dados['banca'], 
-                'ativo',
-                "Edital importado da biblioteca: " . $dados['nome_concurso']
+                $usuario_id, $dados['nome_concurso'], $dados['banca'], $dados['orgao'],
+                $dados['data_prova'], $dados['edital_pdf'] ?? 'biblioteca', 'concluido',
+                "Importado da biblioteca: " . $dados['nome_concurso']
             ]);
             $novoEditalId = $db->lastInsertId();
 
-            // 2. Importar disciplinas
-            $discQ = $db->prepare("SELECT * FROM lib_disciplinas WHERE lib_edital_id = ?");
-            $discQ->execute([$biblioteca_id]);
+            // 2. Criar Cargo
+            $cargoBib = $db->prepare("SELECT nome FROM biblioteca_cargos WHERE id = ?");
+            $cargoBib->execute([$cargo_id_bib]);
+            $nomeCargo = $cargoBib->fetchColumn() ?: 'Geral';
+
+            $insCargo = $db->prepare("INSERT INTO cargos (edital_id, nome, selecionado) VALUES (?, ?, ?)");
+            $insCargo->execute([$novoEditalId, $nomeCargo, 1]);
+            $novoCargoId = $db->lastInsertId();
+
+            // 3. Importar disciplinas E TÓPICOS
+            $discQ = $db->prepare("SELECT * FROM biblioteca_disciplinas WHERE biblioteca_cargo_id = ?");
+            $discQ->execute([$cargo_id_bib]);
             $disciplinas = $discQ->fetchAll();
 
-            $insDisc = $db->prepare("INSERT INTO disciplinas (edital_id, nome, peso) VALUES (?, ?, ?)");
+            $insDisc = $db->prepare("INSERT INTO disciplinas (cargo_id, nome, peso) VALUES (?, ?, ?)");
+            $insTop  = $db->prepare("INSERT INTO topicos_edital (disciplina_id, nome, cobrado_frequentemente) VALUES (?, ?, ?)");
+
             foreach ($disciplinas as $d) {
-                $insDisc->execute([$novoEditalId, $d['nome'], $d['peso']]);
+                $insDisc->execute([$novoCargoId, $d['nome'], $d['peso_padrao']]);
+                $novaDiscId = $db->lastInsertId();
+
+                // Buscar tópicos da biblioteca para esta disciplina
+                $topQ = $db->prepare("SELECT * FROM biblioteca_topicos WHERE biblioteca_disciplina_id = ?");
+                $topQ->execute([$d['id']]);
+                $topicos = $topQ->fetchAll();
+
+                foreach ($topicos as $t) {
+                    $incidencia = ($t['incidencia'] === 'alta' ? 1 : 0);
+                    $insTop->execute([$novaDiscId, $t['nome'], $incidencia]);
+                }
             }
 
-            // 3. Vincular no perfil
-            $stmt = $db->prepare("UPDATE perfis_usuario SET edital_ativo_id = ? WHERE usuario_id = ?");
-            $stmt->execute([$novoEditalId, $usuario_id]);
+            // 4. Vincular no perfil
+            $db->prepare("UPDATE perfis_usuario SET biblioteca_edital_id = ? WHERE usuario_id = ?")
+               ->execute([$biblioteca_id, $usuario_id]);
 
-            // Registrar Evento
-            $stmtEv = $db->prepare("INSERT INTO eventos_usuario (usuario_id, evento, metadata) VALUES (?, ?, ?)");
-            $stmtEv->execute([$usuario_id, 'selecionou_concurso', json_encode(['id' => $biblioteca_id, 'nome' => $dados['nome_concurso']])]);
+            $db->commit();
 
             flashMsg('success', 'Alvo selecionado! Agora vamos configurar seu diagnóstico de partida.');
-            redirect('diagnostico.php');
+            redirect('diagnostico.php?cargo=' . $novoCargoId);
         } catch (Exception $e) {
-            flashMsg('danger', 'Erro ao importar concurso: ' . $e->getMessage());
+            $db->rollBack();
+            flashMsg('danger', 'Erro ao importar: ' . $e->getMessage());
         }
     }
 }
+
+// PASSO 1.5: Seleção de Cargo (Interface)
+$selecionado_id = (int)($_GET['selecionar'] ?? 0);
+$cargos_disponiveis = [];
+if ($selecionado_id) {
+    $cq = $db->prepare("SELECT * FROM biblioteca_cargos WHERE biblioteca_edital_id = ?");
+    $cq->execute([$selecionado_id]);
+    $cargos_disponiveis = $cq->fetchAll();
+    
+    // Se não houver cargos cadastrados, cria um "Geral" fictício ou permite prosseguir
+    if (empty($cargos_disponiveis)) {
+        // Fallback: se não tem cargo na biblioteca, cria um default aqui ou lida como antes
+        // Para seguir a nova regra, vamos forçar que tenha ao menos um cargo.
+    }
+}
+
 
 // Filtros
 $search = sanitize($_GET['q'] ?? '');
 $cat = sanitize($_GET['cat'] ?? '');
 
-$query = "SELECT * FROM lib_editais WHERE status != 'encerrado'";
+$query = "SELECT * FROM biblioteca_editais WHERE status != 'encerrado'";
 $params = [];
 
 if ($search) {
@@ -111,6 +147,48 @@ require_once __DIR__ . '/../includes/header.php';
             </form>
         </div>
     </div>
+
+    <!-- OVERLAY DE SELEÇÃO DE CARGO -->
+    <?php if ($selecionado_id && !empty($cargos_disponiveis)): ?>
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:center; justify-content:center; padding:2rem;">
+        <div class="card-glass animate__animated animate__zoomIn" style="max-width:500px; width:100%; border:1px solid var(--accent-blue);">
+            <div class="card-header-hc d-flex jc-between ai-center">
+                <h4 style="margin:0;"><i class="bi bi-person-badge text-blue"></i> Selecione seu Cargo</h4>
+                <a href="biblioteca.php" class="text-muted"><i class="bi bi-x-lg"></i></a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-lg" style="font-size:0.9rem;">As matérias e o nível de profundidade do edital mudam completamente dependendo do cargo escolhido.</p>
+                
+                <form method="POST">
+                    <input type="hidden" name="biblioteca_id" value="<?= $selecionado_id ?>">
+                    <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <?php foreach($cargos_disponiveis as $idx => $cargo): ?>
+                        <label style="cursor:pointer;">
+                            <input type="radio" name="cargo_id" value="<?= $cargo['id'] ?>" style="display:none;" <?= $idx===0?'checked':'' ?> class="cargo-radio">
+                            <div class="cargo-opt card-glass" style="padding:1rem; border:1px solid var(--border-glass); transition:all 0.3s; background:rgba(255,255,255,0.03);">
+                                <div class="d-flex ai-center jc-between">
+                                    <span class="fw-700"><?= sanitize($cargo['nome']) ?></span>
+                                    <i class="bi bi-check-circle-fill check-ico" style="color:var(--accent-blue); opacity:0;"></i>
+                                </div>
+                            </div>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="submit" name="finalizar_selecao" class="btn-hc btn-primary-hc w-100 mt-lg py-3 shadow-neon">
+                        GERAR MINHA ESTRATÉGIA <i class="bi bi-rocket-takeoff"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <style>
+        .cargo-radio:checked + .cargo-opt { border-color: var(--accent-blue) !important; background: rgba(59,130,246,0.1) !important; }
+        .cargo-radio:checked + .cargo-opt .check-ico { opacity: 1 !important; }
+    </style>
+    <?php elseif($selecionado_id): ?>
+        <!-- Script para auto-selecionar se não houver cargos (Geral) -->
+        <script>window.location.href = '?selecionar=<?= $selecionado_id ?>&auto=1';</script>
+    <?php endif; ?>
 
     <!-- Grid de Cards -->
     <div class="grid-3">

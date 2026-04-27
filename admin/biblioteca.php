@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $stmt = $db->prepare("INSERT INTO lib_editais (nome_concurso, orgao, banca, data_prova, abrangencia, numero_vagas, status, imagem, edital_pdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $db->prepare("INSERT INTO biblioteca_editais (nome_concurso, orgao, banca, data_prova, abrangencia, numero_vagas, status, imagem, edital_pdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$nome, $orgao, $banca, $data_prova, $abrangencia, $numero_vagas, $status, $imagem_path, $pdf_path]);
             flashMsg('success', 'Concurso adicionado com sucesso!');
         } catch (Exception $e) {
@@ -55,14 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'delete') {
         $id = (int)$_POST['id'];
-        $db->prepare("DELETE FROM lib_editais WHERE id = ?")->execute([$id]);
+        $db->prepare("DELETE FROM biblioteca_editais WHERE id = ?")->execute([$id]);
         flashMsg('success', 'Concurso removido.');
         redirect('biblioteca.php');
     }
 }
 
 // Listar concursos
-$editais = $db->query("SELECT * FROM lib_editais ORDER BY criado_em DESC")->fetchAll();
+$editais = $db->query("SELECT * FROM biblioteca_editais ORDER BY criado_em DESC")->fetchAll();
 
 $page_title = 'Biblioteca IA - HackConcursos';
 require_once __DIR__ . '/../includes/header.php';

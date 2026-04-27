@@ -22,23 +22,24 @@ function sidebarItem(string $href, string $icon, string $label, string $current,
   <nav class="sidebar-menu">
 
 <?php if (!$is_admin): ?>
-    <div class="sidebar-section-label">Início</div>
-    <?= sidebarItem($base . '/dashboard.php',     'grid-fill',       'Dashboard',         $current_page) ?>
-    <?= sidebarItem($base . '/meus_concursos.php', 'trophy-fill',     'Meus Concursos',    $current_page) ?>
-    <?= sidebarItem($base . '/biblioteca.php',     'search',          'Escolher Concurso', $current_page) ?>
-    <?= sidebarItem($base . '/plano_estudos.php', 'calendar3',       'Plano de Estudos',  $current_page) ?>
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">INÍCIO</div>
+    <?= sidebarItem($base . '/dashboard.php',     'crosshair',       'Missão Atual',      $current_page) ?>
 
-    <div class="sidebar-section-label">Aprender</div>
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">EXECUÇÃO</div>
+    <?= sidebarItem($base . '/plano_estudos.php', 'list-task',       'Plano de Estudo',   $current_page) ?>
     <?= sidebarItem($base . '/simulados.php',     'patch-question',  'Simulados',         $current_page) ?>
-    <?= sidebarItem($base . '/chat_edital.php',   'stars',           'Tira-Dúvidas IA',  $current_page) ?>
-    <?= sidebarItem($base . '/diagnostico.php',   'clipboard-data',  'Diagnóstico',       $current_page) ?>
 
-    <div class="sidebar-section-label">Loja</div>
-    <?= sidebarItem($base . '/loja.php',          'bag-heart',       'Materiais',         $current_page) ?>
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--warning);">INTELIGÊNCIA <i class="bi bi-lock-fill small" style="opacity:0.5"></i></div>
+    <?= sidebarItem($base . '/scanner_erros.php',  'shield-exclamation','Scanner de Erros', $current_page) ?>
+    <?= sidebarItem($base . '/insights.php',       'graph-up-arrow',  'Insights',          $current_page) ?>
 
-    <div class="sidebar-section-label">Conta</div>
-    <?= sidebarItem($base . '/perfil.php',        'person-circle',   'Meu Perfil',        $current_page) ?>
-    <?= sidebarItem($base . '/meu_plano.php',     'credit-card',     'Meu Plano',         $current_page) ?>
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--neon-green);">ARSENAL</div>
+    <?= sidebarItem($base . '/chat_edital.php',   'cpu',             'Consultor IA',      $current_page) ?>
+    <?= sidebarItem($base . '/loja.php',          'lightning-charge','Loja / Energia',    $current_page) ?>
+
+    <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">CONTA</div>
+    <?= sidebarItem($base . '/perfil.php',        'person-circle',   'Perfil',            $current_page) ?>
+    <?= sidebarItem($base . '/meu_plano.php',     'credit-card',     'Assinatura',        $current_page) ?>
 
 <?php else: ?>
     <div class="sidebar-section-label">Administração</div>
