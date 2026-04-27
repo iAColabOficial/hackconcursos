@@ -795,8 +795,117 @@ select.form-control-hc { cursor: pointer; }
 
 /* === GRID RESPONSIVO === */
 .grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:1.25rem; }
-.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1.25rem; }
-.grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:1.25rem; }
+
+/* === JOURNEY BAR === */
+.journey-container {
+    padding: 2rem 0;
+    position: relative;
+}
+.journey-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.journey-progress {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--neon-green));
+    border-radius: 3px;
+    box-shadow: 0 0 15px rgba(34,197,94,0.3);
+    z-index: 1;
+}
+.journey-node {
+    width: 14px;
+    height: 14px;
+    background: #1a1a1a;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s ease;
+}
+.journey-node.active {
+    background: var(--neon-green);
+    border-color: rgba(34,197,94,0.4);
+    box-shadow: 0 0 10px var(--neon-green);
+}
+.journey-node .node-label {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.journey-node.active .node-label { color: var(--text-primary); }
+
+/* === PREMIUM LOCK === */
+.premium-lock {
+    position: relative;
+}
+.premium-lock .lock-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.premium-lock:hover .lock-overlay { opacity: 1; }
+.premium-lock .lock-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--accent-purple);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 11;
+}
+
+/* === CIRCULAR PROGRESS === */
+.circle-progress {
+    width: 100px;
+    height: 100px;
+    position: relative;
+}
+.circle-progress svg {
+    transform: rotate(-90deg);
+}
+.circle-progress .bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.05);
+    stroke-width: 8;
+}
+.circle-progress .bar {
+    fill: none;
+    stroke: var(--neon-green);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease;
+}
+.circle-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
 
 /* === RESPONSIVIDADE === */
 @media (max-width: 1024px) {

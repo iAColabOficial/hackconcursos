@@ -110,3 +110,31 @@ Array
         )
 
 )
+Disc: Raciocínio Lógico
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Considere a seguinte declaração feita por um inspetor de alfândega durante uma vistoria: 'Se a documentação estiver incompleta, então a carga será retida'. Do ponto de vista da lógica sentencial, a negação lógica dessa afirmação é:
+            [alternativa_a] => Se a documentação não estiver incompleta, então a carga não será retida.
+            [alternativa_b] => A documentação está incompleta e a carga não é retida.
+            [alternativa_c] => A documentação não está incompleta ou a carga não é retida.
+            [alternativa_d] => Se a carga for retida, então a documentação estava incompleta.
+            [alternativa_e] => A documentação não está incompleta e a carga é retida.
+            [gabarito] => B
+            [explicacao] => Hack de Prova: Para negar uma condicional (Se P, então Q), utiliza-se a regra do 'MANÉ' (MAntém a primeira E NEga a segunda). A estrutura lógica da negação de P -> Q é (P ^ ~Q). Portanto, mantém-se 'documentação incompleta' e nega-se 'carga retida'.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Em um processo administrativo, um técnico judiciário afirmou: 'O processo foi digitalizado ou o prazo recursal foi reaberto'. Sabe-se que a afirmação feita pelo técnico é falsa. Logo, do ponto de vista lógico, é correto concluir que:
+            [alternativa_a] => O processo não foi digitalizado e o prazo recursal não foi reaberto.
+            [alternativa_b] => O processo não foi digitalizado ou o prazo recursal não foi reaberto.
+            [alternativa_c] => Se o processo não foi digitalizado, então o prazo recursal foi reaberto.
+            [alternativa_d] => O processo foi digitalizado, mas o prazo recursal não foi reaberto.
+            [alternativa_e] => Se o prazo recursal não foi reaberto, então o processo foi digitalizado.
+            [gabarito] => A
+            [explicacao] => Hack de Prova: Aplicamos a 1ª Lei de De Morgan para negar uma disjunção (P ou Q). A negação de (P v Q) é (~P ^ ~Q). Para que uma proposição composta pelo conectivo 'OU' seja falsa, ambas as proposições simples devem ser obrigatoriamente falsas.
+        )
+
+)

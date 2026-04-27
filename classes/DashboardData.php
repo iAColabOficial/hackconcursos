@@ -62,12 +62,39 @@ class DashboardData {
             JOIN disciplinas d ON t.disciplina_id = d.id
             JOIN planos_estudo p ON t.plano_id = p.id
             WHERE p.usuario_id = ? AND t.concluida = 0 AND p.ativo = 1
-            ORDER BY t.data_prevista ASC, t.id ASC LIMIT 1
+            ORDER BY t.data_prevista ASC, t.id ASC LIMIT 2
         ");
         $stmt->execute([$this->usuarioId]);
-        $metrics['missao'] = $stmt->fetch(PDO::FETCH_ASSOC);
+        $missoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $metrics['missao'] = $missoes[0] ?? null;
+        $metrics['proxima_missao'] = $missoes[1] ?? null;
+
+        // 7. Probabilidade de Aprovação (Simulação baseada em Cobertura e Taxa)
+        $metrics['probabilidade'] = round(($metrics['cobertura'] * 0.3) + ($metrics['taxa_acerto'] * 0.7));
 
         return $metrics;
+    }
+
+    public function getConquistas() {
+        $stmt = $this->db->prepare("SELECT * FROM conquistas WHERE usuario_id = ? ORDER BY conquistada_em DESC LIMIT 3");
+        $stmt->execute([$this->usuarioId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getPontosFracos() {
+        $stmt = $this->db->prepare("
+            SELECT d.nome, (SUM(r.correta) / COUNT(r.id)) * 100 as taxa
+            FROM respostas_usuario r
+            JOIN questoes q ON r.questao_id = q.id
+            JOIN disciplinas d ON q.disciplina_id = d.id
+            WHERE r.usuario_id = ?
+            GROUP BY d.id
+            HAVING taxa < 70
+            ORDER BY taxa ASC
+            LIMIT 3
+        ");
+        $stmt->execute([$this->usuarioId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     private function getNivelLabel($slug, $streak) {
