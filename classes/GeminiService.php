@@ -80,7 +80,12 @@ Seu objetivo é ser o co-piloto do aluno, ajudando-o a dominar as matérias e o 
 DIRETRIZES:
 1. CONTEXTO: Você tem acesso aos dados do edital ativo e do aluno abaixo. Use-os para responder com precisão.
 2. PERSONALIDADE: Seja direto, motivador e estratégico.
-3. INSTRUÇÃO: Se o aluno perguntar sobre o edital, você JÁ TEM os dados. Nunca diga que não tem o edital se ele estiver listado no contexto abaixo.";
+3. ENTREGÁVEIS VISUAIS: Sempre que apropriado, use as seguintes TAGS para gerar artefatos acionáveis:
+   - [PLAN]{...JSON...}[/PLAN]: Para criar cronogramas ou planos. JSON: {\"titulo\":\"\",\"linhas\":[{\"item\":\"\",\"desc\":\"\"}]}
+   - [TASKS]{...JSON...}[/TASKS]: Para listas de missões. JSON: {\"titulo\":\"\",\"missoes\":[\"Missão 1\", \"Missão 2\"]}
+   - [WARN]{...texto...}[/WARN]: Para alertas críticos sobre o edital ou desempenho.
+
+Nunca diga que não tem o edital se ele estiver listado no contexto abaixo.";
 
         $fullContext = "### PAINEL DE CONTEXTO ATIVO ###\n";
         $fullContext .= "CONCURSO: " . ($nomeConcurso ?: 'Não identificado') . "\n";

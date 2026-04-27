@@ -21,13 +21,13 @@ $pq = $db->prepare($sql);
 $pq->execute($params);
 $produtos = $pq->fetchAll();
 
-// Se não houver produtos, vamos inserir alguns mocks para demonstração (Modo Guerra)
+// Se não houver produtos, vamos inserir o Arsenal de Elite (Mocks Modo Guerra)
 if (empty($produtos) && empty($tag)) {
     $mocks = [
-        ['Hack: Direito Constitucional', 'Resumo tático focado nas pegadinhas da banca.', 'direto', 49.90, 'https://placehold.co/600x400/0c1424/22c55e?text=Constitucional'],
-        ['Combo Português Hacker', 'Mapas mentais e questões comentadas para gabaritar.', 'portugues', 87.00, 'https://placehold.co/600x400/0c1424/3b82f6?text=Portugues'],
-        ['Guia de Estudo: PF e PRF', 'O plano secreto dos aprovados nas carreiras policiais.', 'policial', 129.90, 'https://placehold.co/600x400/0c1424/a855f7?text=Carreiras+Policiais'],
-        ['Redação Nota Máxima', 'Modelos prontos para você encaixar em qualquer tema.', 'redacao', 35.00, 'https://placehold.co/600x400/0c1424/f59e0b?text=Redacao']
+        ['Modo Sprint 48h (IA)', 'A IA identifica o que você NÃO precisa estudar e compacta seu edital para as próximas 48h.', 'acelerador', 47.00, 'https://placehold.co/600x400/0c1424/22c55e?text=MODO+SPRINT'],
+        ['Escudo Anti-Banca (Dossiê)', 'Análise profunda dos padrões de pegadinhas da banca do seu concurso.', 'estrategia', 39.90, 'https://placehold.co/600x400/0c1424/3b82f6?text=ANTI-BANCA'],
+        ['Célula de Energia (Pack 50)', 'Recarregue sua Stamina Estratégica para mais 50 consultas profundas ao Mentor IA.', 'energia', 25.00, 'https://placehold.co/600x400/0c1424/fbbf24?text=ENERGIA+IA'],
+        ['Mapeamento Preditivo', 'O que tem 92% de chance de estar na sua prova baseado em dados históricos.', 'acelerador', 89.00, 'https://placehold.co/600x400/0c1424/a855f7?text=PREDITIVO']
     ];
     $ins = $db->prepare("INSERT INTO produtos (nome, descricao, disciplina_tag, preco, imagem) VALUES (?,?,?,?,?)");
     foreach ($mocks as $m) $ins->execute($m);
@@ -47,9 +47,9 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="page-header d-flex jc-between ai-center">
       <div>
-        <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">›</span> Materiais</div>
-        <h2>🛒 Loja de Materiais</h2>
-        <p>Acelere sua aprovação com conteúdos táticos selecionados pela nossa equipe.</p>
+        <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">›</span> Arsenal</div>
+        <h2><i class="bi bi-rocket-takeoff text-neon" style="margin-right:0.5rem;"></i> Arsenal de Elite</h2>
+        <p>Atalhos estratégicos para reduzir seu tempo até a aprovação.</p>
       </div>
       <div class="d-flex gap-md">
          <div class="input-group-hc" style="width:250px;">
@@ -63,11 +63,10 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- Filtros Rápidos -->
     <div style="display:flex; gap:0.6rem; margin-bottom:2rem; overflow-x:auto; padding-bottom:0.5rem;" class="hide-scrollbar">
-        <a href="loja.php" class="chip <?= empty($tag) ? 'active' : '' ?>" style="<?= empty($tag) ? 'border-color:var(--neon-green); color:var(--neon-green);' : '' ?>">🔥 Todos</a>
-        <a href="?tag=portugues" class="chip">📚 Português</a>
-        <a href="?tag=direito" class="chip">⚖️ Direito</a>
-        <a href="?tag=redacao" class="chip">✍️ Redação</a>
-        <a href="?tag=mapas" class="chip">🧠 Mapas Mentais</a>
+        <a href="loja.php" class="chip <?= empty($tag) ? 'active' : '' ?>">Todos</a>
+        <a href="?tag=acelerador" class="chip <?= $tag=='acelerador'?'active':'' ?>"><i class="bi bi-rocket-takeoff"></i> Aceleradores</a>
+        <a href="?tag=energia" class="chip <?= $tag=='energia'?'active':'' ?>"><i class="bi bi-lightning-charge"></i> Energia</a>
+        <a href="?tag=estrategia" class="chip <?= $tag=='estrategia'?'active':'' ?>"><i class="bi bi-shield-lock"></i> Estratégia</a>
     </div>
 
     <div class="grid-3">
@@ -76,7 +75,11 @@ require_once __DIR__ . '/../includes/header.php';
             <div style="height:180px; width:100%; overflow:hidden; position:relative;">
                 <img src="<?= $p['imagem'] ?>" alt="<?= sanitize($p['nome']) ?>" style="width:100%; height:100%; object-fit:cover;">
                 <div style="position:absolute; top:1rem; right:1rem;">
-                    <span class="badge-hc badge-purple">RECOMENDADO</span>
+                    <?php if ($p['disciplina_tag'] === 'acelerador'): ?>
+                        <span class="badge-hc" style="background:var(--neon-green); color:#000; font-weight:900;">ACELERADOR</span>
+                    <?php else: ?>
+                        <span class="badge-hc badge-purple">ESTRATÉGICO</span>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="card-body" style="flex:1; display:flex; flex-direction:column; padding:1.25rem;">

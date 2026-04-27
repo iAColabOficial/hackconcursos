@@ -51,7 +51,9 @@ require_once __DIR__ . '/../includes/header.php';
 
         <?php if (empty($concursos)): ?>
             <div class="card-glass p-5 text-center">
-                <div style="font-size:3.5rem;margin-bottom:1.5rem;">🎯</div>
+                <div style="margin-bottom:1.5rem;">
+                    <i class="bi bi-bullseye text-neon" style="font-size:4rem; filter: drop-shadow(0 0 10px var(--neon-green-glow));"></i>
+                </div>
                 <h4>Você ainda não tem concursos cadastrados.</h4>
                 <p class="text-secondary mb-4">Comece agora e crie seu primeiro plano de estudos tático.</p>
                 <a href="upload_edital.php" class="btn-hc btn-primary-hc btn-lg">Criar Meu Primeiro Plano</a>

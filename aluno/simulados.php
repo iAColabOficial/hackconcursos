@@ -46,7 +46,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-header d-flex jc-between ai-center">
       <div>
         <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">›</span> Simulados</div>
-        <h2>🎯 Meus Simulados</h2>
+        <h2><i class="bi bi-journal-check text-blue"></i> Meus Simulados</h2>
         <p>Pratique com questões reais e geradas por inteligência tática.</p>
       </div>
       <?php if ($cargoAtivo): ?>
@@ -58,7 +58,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php if (!$cargoAtivo): ?>
     <div class="card-glass" style="text-align:center;padding:3rem;">
-      <div style="font-size:3rem;margin-bottom:1rem;">📄</div>
+      <div style="font-size:3rem;margin-bottom:1rem;"><i class="bi bi-file-earmark-text text-muted"></i></div>
       <h3>Nenhum edital selecionado</h3>
       <p style="color:var(--text-secondary);margin:0.75rem 0 1.5rem;">Você precisa configurar um edital e cargo antes de gerar simulados.</p>
       <a href="upload_edital.php" class="btn-hc btn-primary-hc">Enviar Edital</a>
@@ -157,7 +157,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="modal-novo-simulado" style="display:none;">
   <div class="modal-box">
     <div class="modal-header">
-      <h5 style="margin:0;">🚀 Iniciar Novo Simulado</h5>
+      <h5 style="margin:0;"><i class="bi bi-play-circle-fill text-neon"></i> Iniciar Novo Simulado</h5>
       <button class="modal-close" onclick="closeModal('modal-novo-simulado')">&times;</button>
     </div>
     <form id="form-novo-simulado">
@@ -216,7 +216,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-hc btn-ghost" onclick="closeModal('modal-novo-simulado')">Cancelar</button>
-        <button type="submit" class="btn-hc btn-primary-hc">Gerar Simulado ⚡</button>
+        <button type="submit" class="btn-hc btn-primary-hc">Gerar Simulado <i class="bi bi-lightning-charge-fill"></i></button>
       </div>
     </form>
   </div>

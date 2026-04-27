@@ -363,4 +363,72 @@ class StudyPlanner {
 
         return $resumo;
     }
+
+    /**
+     * Calcula o risco estratégico de reprovação baseado no ritmo atual vs data da prova.
+     */
+    public function getAnaliseRisco(int $usuarioId): array {
+        $db = $this->db;
+        
+        // 1. Pegar dados básicos
+        $progresso = $this->getProgressoGeral($usuarioId);
+        
+        $st = $db->prepare("
+            SELECT e.data_prova, p.horas_dia, p.usuario_id
+            FROM planos_estudo pl
+            JOIN cargos c ON c.id = pl.cargo_id
+            JOIN editais e ON e.id = c.edital_id
+            JOIN perfis_usuario p ON p.usuario_id = pl.usuario_id
+            WHERE pl.usuario_id = ? AND pl.ativo = 1
+            LIMIT 1
+        ");
+        $st->execute([$usuarioId]);
+        $info = $st->fetch();
+        
+        if (!$info || !$info['data_prova']) {
+            return ['nivel' => 'baixo', 'msg' => 'Defina uma data de prova para calcular seu risco.', 'cor' => 'var(--neon-green)'];
+        }
+
+        $dataProva = new \DateTime($info['data_prova']);
+        $hoje = new \DateTime();
+        $diasRestantes = $hoje->diff($dataProva)->days;
+        
+        // 2. Calcular esforço necessário
+        $tarefasRestantes = $progresso['total'] - $progresso['concluidas'];
+        $horasNecessarias = ($tarefasRestantes * 1.2); // média de 1.2h por tarefa (estudo + revisão)
+        
+        if ($diasRestantes <= 0) return ['nivel' => 'critico', 'msg' => 'A prova já passou ou é hoje! Foco total.', 'cor' => '#ef4444'];
+
+        $horasPorDiaNecessarias = $horasNecessarias / $diasRestantes;
+        $capacidadeAtual = (float)$info['horas_dia'];
+        
+        $ratio = $horasPorDiaNecessarias / max(0.5, $capacidadeAtual);
+
+        if ($ratio > 2.5) {
+            $nivel = 'extremo';
+            $msg = "RISCO EXTREMO: Você precisaria de " . round($horasPorDiaNecessarias, 1) . "h/dia. Ritmo atual insuficiente.";
+            $cor = '#ef4444';
+        } elseif ($ratio > 1.5) {
+            $nivel = 'alto';
+            $msg = "RISCO ALTO: Seu edital está correndo mais rápido que você. Aumente a carga.";
+            $cor = '#f59e0b';
+        } elseif ($ratio > 1.0) {
+            $nivel = 'medio';
+            $msg = "ALERTA: Você está no limite. Qualquer atraso será fatal para sua aprovação.";
+            $cor = '#fbbf24';
+        } else {
+            $nivel = 'baixo';
+            $msg = "RITMO SEGURO: Continue assim e você cobrirá o edital com folga.";
+            $cor = 'var(--neon-green)';
+        }
+
+        return [
+            'nivel' => $nivel,
+            'msg' => $msg,
+            'cor' => $cor,
+            'ratio' => $ratio,
+            'horas_necessarias_dia' => round($horasPorDiaNecessarias, 1),
+            'dias_restantes' => $diasRestantes
+        ];
+    }
 }

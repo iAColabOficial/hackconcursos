@@ -46,7 +46,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="page-header">
       <div class="page-breadcrumb"><a href="dashboard.php">Dashboard</a><span class="sep">›</span> Tira-Dúvidas</div>
-      <h2>💬 Mentor Hack IA</h2>
+      <h2><i class="bi bi-chat-dots text-blue"></i> Mentor Hack IA</h2>
       <p>Seu mentor pessoal para dúvidas de matérias, estratégia de estudos e edital.</p>
     </div>
 
@@ -62,13 +62,13 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="card-glass" style="display:flex;flex-direction:column;height:600px;">
         <!-- Header do chat -->
         <div class="card-header-hc" style="border-bottom: 1px solid var(--border-glass);">
-          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--neon-green),var(--accent-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 15px rgba(34,197,94,0.3);">🤖</div>
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--neon-green),var(--accent-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 15px rgba(34,197,94,0.3);"><i class="bi bi-robot text-white"></i></div>
           <div style="margin-left:0.5rem;">
             <div class="fw-800" style="font-size:1rem; letter-spacing:-0.01em;">Mentor Estratégico IA</div>
             <?php if ($usr['plano'] === 'premium'): ?>
-                <div style="font-size:0.75rem;color:var(--neon-green); font-weight:700;">● MODO GUERRA ATIVO</div>
+                <div style="font-size:0.75rem;color:var(--neon-green); font-weight:700;"><i class="bi bi-lightning-charge-fill"></i> MODO GUERRA ATIVO</div>
             <?php else: ?>
-                <div style="font-size:0.75rem;color:var(--accent-purple); font-weight:700;">● Mentor IA (Consome Tokens)</div>
+                <div style="font-size:0.75rem;color:var(--accent-purple); font-weight:700;"><i class="bi bi-shield-lock"></i> Mentor IA (Consome Tokens)</div>
             <?php endif; ?>
           </div>
           
@@ -86,15 +86,15 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="chat-messages" id="chat-messages">
           <!-- Mensagem inicial do bot -->
           <div class="msg-bubble msg-ai">
-            <div class="ai-icon">🤖 Mentor Hack</div>
-            Olá! Sou seu <strong>Mentor Hack IA</strong>. 🚀<br>
+            <div class="ai-icon"><i class="bi bi-robot"></i> Mentor Hack</div>
+            Olá! Sou seu <strong>Mentor Hack IA</strong>. <i class="bi bi-cpu-fill text-neon"></i><br>
             Estou aqui para te ajudar a dominar as matérias, criar estratégias de estudo imbatíveis ou tirar dúvidas específicas sobre o seu concurso. O que vamos aprender hoje?
           </div>
 
           <!-- Histórico -->
           <?php foreach ($historico as $msg): ?>
           <div class="msg-bubble <?= $msg['papel'] === 'user' ? 'msg-user' : 'msg-ai' ?>">
-            <?php if($msg['papel'] === 'model'): ?><div class="ai-icon">🤖 Assistente</div><?php endif; ?>
+            <?php if($msg['papel'] === 'model'): ?><div class="ai-icon"><i class="bi bi-robot"></i> Assistente</div><?php endif; ?>
             <?= nl2br(sanitize($msg['mensagem'])) ?>
           </div>
           <?php endforeach; ?>
@@ -139,7 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <?php if ($edital && !empty($edital['data_prova'])): ?>
             <div><div class="form-label">Data da Prova</div>
-              <div class="fw-700 text-neon"><?= date('d/m/Y', strtotime($edital['data_prova'])) ?></div>
+              <div class="fw-700 text-neon"><i class="bi bi-calendar-event"></i> <?= date('d/m/Y', strtotime($edital['data_prova'])) ?></div>
             </div>
             <?php endif; ?>
           </div>
@@ -147,14 +147,14 @@ require_once __DIR__ . '/../includes/header.php';
 
         <!-- Sugestões de Estratégia -->
         <div class="card-glass">
-          <div class="card-header-hc"><h5>🚀 Estratégia Hack</h5></div>
+          <div class="card-header-hc"><h5><i class="bi bi-rocket-takeoff-fill text-neon"></i> Estratégia Hack</h5></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:0.4rem;">
             <?php
             $cats = [
-              ['🧠','Técnicas de Estudo', 'Quais as melhores técnicas para estudar exatas?'],
-              ['⚖️','Prioridades IA','Com base no meu progresso, o que devo priorizar?'],
-              ['⏱️','Gestão de Tempo','Como organizar meu tempo se só tenho 2 horas?'],
-              ['📊','Análise de Edital','Explique os critérios de desempate deste edital.'],
+              ['<i class="bi bi-lightbulb"></i>','Técnicas de Estudo', 'Quais as melhores técnicas para estudar exatas?'],
+              ['<i class="bi bi-graph-up-arrow"></i>','Prioridades IA','Com base no meu progresso, o que devo priorizar?'],
+              ['<i class="bi bi-stopwatch"></i>','Gestão de Tempo','Como organizar meu tempo se só tenho 2 horas?'],
+              ['<i class="bi bi-file-earmark-text"></i>','Análise de Edital','Explique os critérios de desempate deste edital.'],
             ];
             foreach ($cats as [$ico,$cat,$q]):
             ?>
@@ -184,13 +184,49 @@ scrollBottom();
 function addMsg(texto, tipo) {
   const div = document.createElement('div');
   div.className = 'msg-bubble ' + (tipo === 'user' ? 'msg-user' : 'msg-ai');
+  
   if (tipo === 'ai') {
     const lbl = document.createElement('div');
     lbl.className = 'ai-icon';
-    lbl.textContent = '🤖 Assistente';
+    lbl.textContent = '🤖 Mentor Hack';
     div.appendChild(lbl);
   }
-  div.innerHTML += texto.replace(/\n/g,'<br>');
+
+  // Renderizador de Artefatos
+  let finalHtml = texto;
+
+  // 1. Renderizar [WARN]
+  finalHtml = finalHtml.replace(/\[WARN\]([\s\S]*?)\[\/WARN\]/g, (match, content) => {
+    return `<div class="card-warn-ia"><i class="bi bi-exclamation-triangle-fill"></i> ${content}</div>`;
+  });
+
+  // 2. Renderizar [TASKS]
+  finalHtml = finalHtml.replace(/\[TASKS\]([\s\S]*?)\[\/TASKS\]/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      let list = `<div class="card-tasks-ia"><h6><i class="bi bi-check2-all"></i> ${data.titulo || 'Missões Recomendadas'}</h6><ul>`;
+      data.missoes.forEach(m => {
+        list += `<li><label><input type="checkbox"> <span>${m}</span></label></li>`;
+      });
+      list += '</ul></div>';
+      return list;
+    } catch(e) { return `<pre>${jsonStr}</pre>`; }
+  });
+
+  // 3. Renderizar [PLAN]
+  finalHtml = finalHtml.replace(/\[PLAN\]([\s\S]*?)\[\/PLAN\]/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      let table = `<div class="card-plan-ia"><h6><i class="bi bi-calendar3"></i> ${data.titulo || 'Plano Estratégico'}</h6><table><thead><tr><th>Foco</th><th>Ação</th></tr></thead><tbody>`;
+      data.linhas.forEach(l => {
+        table += `<tr><td><strong>${l.item}</strong></td><td>${l.desc}</td></tr>`;
+      });
+      table += '</tbody></table></div>';
+      return table;
+    } catch(e) { return `<pre>${jsonStr}</pre>`; }
+  });
+
+  div.innerHTML += finalHtml.replace(/\n/g,'<br>');
   msgs.appendChild(div);
   scrollBottom();
   return div;
@@ -270,9 +306,28 @@ function limparChat() {
   msgs.querySelectorAll('.msg-bubble:not(:first-child)').forEach(el=>el.remove());
 }
 
-// Estilo dos pontos de digitação
+// Estilo dos componentes IA
 const style = document.createElement('style');
-style.textContent = `.dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);animation:blink 1.2s infinite both;}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}`;
+style.textContent = `
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted);animation:blink 1.2s infinite both;}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+  
+  .card-warn-ia { background: rgba(239,68,68,0.1); border-left: 4px solid #ef4444; padding: 1rem; border-radius: 8px; margin: 0.5rem 0; color: #fca5a5; font-size: 0.9rem; font-weight: 600; }
+  
+  .card-tasks-ia { background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; padding: 1rem; margin: 0.75rem 0; }
+  .card-tasks-ia h6 { color: var(--neon-green); margin-bottom: 0.75rem; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px; }
+  .card-tasks-ia ul { list-style: none; padding: 0; margin: 0; }
+  .card-tasks-ia li { margin-bottom: 0.5rem; }
+  .card-tasks-ia label { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--text-primary); }
+  .card-tasks-ia input[type="checkbox"] { margin-top: 0.2rem; accent-color: var(--neon-green); }
+  .card-tasks-ia input:checked + span { text-decoration: line-through; opacity: 0.6; }
+
+  .card-plan-ia { background: var(--dark-card); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem; margin: 0.75rem 0; overflow-x: auto; }
+  .card-plan-ia h6 { color: var(--accent-blue); margin-bottom: 0.75rem; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; }
+  .card-plan-ia table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .card-plan-ia th { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border-glass); color: var(--text-muted); font-weight: 600; }
+  .card-plan-ia td { padding: 0.65rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .card-plan-ia tr:last-child td { border-bottom: none; }
+`;
 document.head.appendChild(style);
 </script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -107,6 +107,45 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- Relatório por Disciplina (Profissional) -->
     <div class="card-glass mb-lg" style="padding:1.5rem;">
         <h5 class="fw-800 mb-3"><i class="bi bi-bar-chart-fill text-purple"></i> Análise de Desempenho por Disciplina</h5>
+        
+        <?php
+        $statsDisc = [];
+        foreach ($questoes as $q) {
+            $dNome = $q['disciplina_nome'];
+            if (!isset($statsDisc[$dNome])) $statsDisc[$dNome] = ['total' => 0, 'acertos' => 0];
+            $statsDisc[$dNome]['total']++;
+            if ($q['resp_usuario'] === $q['gabarito']) $statsDisc[$dNome]['acertos']++;
+        }
+
+        // Identificar a pior matéria para o Gatilho de Conversão
+        $piorMateria = null;
+        $menorPercentual = 101;
+        foreach ($statsDisc as $nome => $s) {
+            $p = round(($s['acertos'] / $s['total']) * 100);
+            if ($p < $menorPercentual) {
+                $menorPercentual = $p;
+                $piorMateria = $nome;
+            }
+        }
+
+        if ($menorPercentual < 60): ?>
+        <!-- GATILHO DE CONVERSÃO: BOOSTER -->
+        <div class="card-glass mb-4" style="background:linear-gradient(90deg, rgba(239,68,68,0.05), rgba(0,0,0,0)); border:1px solid rgba(239,68,68,0.2); padding:1.25rem;">
+            <div class="d-flex ai-center gap-md">
+                <div style="font-size:2rem;">🚨</div>
+                <div style="flex:1;">
+                    <div style="font-weight:800; color:#ef4444; font-size:0.9rem; text-transform:uppercase;">Alerta de Fraqueza Detectado</div>
+                    <div style="font-size:1rem; margin-top:0.25rem;">
+                        Seu desempenho em <strong><?= $piorMateria ?></strong> (<?= $menorPercentual ?>%) está abaixo da linha de corte.
+                    </div>
+                </div>
+                <a href="loja.php?tag=acelerador" class="btn-hc" style="background:#ef4444; color:#fff; font-weight:900;">
+                    DESBLOQUEAR REFORÇO IA
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="grid-2" style="gap:1rem;">
             <?php
             $statsDisc = [];

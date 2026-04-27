@@ -15,34 +15,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create') {
-        $nome      = sanitize($_POST['nome_concurso']);
-        $orgao     = sanitize($_POST['orgao']);
-        $banca     = sanitize($_POST['banca']);
-        $ano       = (int)$_POST['ano'];
-        $categoria = $_POST['categoria'];
-        $status    = $_POST['status'];
-        $slug      = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $nome)));
+        $nome        = sanitize($_POST['nome_concurso']);
+        $orgao       = sanitize($_POST['orgao']);
+        $banca       = sanitize($_POST['banca']);
+        $data_prova  = sanitize($_POST['data_prova']);
+        $abrangencia = sanitize($_POST['abrangencia']);
+        $numero_vagas= sanitize($_POST['numero_vagas']);
+        $status      = $_POST['status'];
+        
+        $imagem_path = '';
+        $pdf_path    = '';
+
+        // Upload da Imagem (800x200)
+        if (!empty($_FILES['imagem']['name'])) {
+            $ext = pathinfo($_FILES['imagem']['name'], PATHINFO_EXTENSION);
+            $new_name = 'card_' . time() . '.' . $ext;
+            if (move_uploaded_file($_FILES['imagem']['tmp_name'], __DIR__ . '/../assets/img/' . $new_name)) {
+                $imagem_path = 'assets/img/' . $new_name;
+            }
+        }
+
+        // Upload do Edital PDF
+        if (!empty($_FILES['edital_pdf']['name'])) {
+            $new_name = 'edital_' . time() . '.pdf';
+            if (move_uploaded_file($_FILES['edital_pdf']['tmp_name'], __DIR__ . '/../assets/editais/' . $new_name)) {
+                $pdf_path = 'assets/editais/' . $new_name;
+            }
+        }
 
         try {
-            $stmt = $db->prepare("INSERT INTO biblioteca_editais (nome_concurso, orgao, banca, ano, categoria, status, slug) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nome, $orgao, $banca, $ano, $categoria, $status, $slug]);
-            flashMsg('success', 'Concurso adicionado à biblioteca!');
+            $stmt = $db->prepare("INSERT INTO lib_editais (nome_concurso, orgao, banca, data_prova, abrangencia, numero_vagas, status, imagem, edital_pdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$nome, $orgao, $banca, $data_prova, $abrangencia, $numero_vagas, $status, $imagem_path, $pdf_path]);
+            flashMsg('success', 'Concurso adicionado com sucesso!');
         } catch (Exception $e) {
-            flashMsg('danger', 'Erro ao adicionar concurso: ' . $e->getMessage());
+            flashMsg('danger', 'Erro ao adicionar: ' . $e->getMessage());
         }
         redirect('biblioteca.php');
     }
 
     if ($action === 'delete') {
         $id = (int)$_POST['id'];
-        $db->prepare("DELETE FROM biblioteca_editais WHERE id = ?")->execute([$id]);
-        flashMsg('success', 'Concurso removido da biblioteca.');
+        $db->prepare("DELETE FROM lib_editais WHERE id = ?")->execute([$id]);
+        flashMsg('success', 'Concurso removido.');
         redirect('biblioteca.php');
     }
 }
 
 // Listar concursos
-$editais = $db->query("SELECT * FROM biblioteca_editais ORDER BY criado_em DESC")->fetchAll();
+$editais = $db->query("SELECT * FROM lib_editais ORDER BY criado_em DESC")->fetchAll();
 
 $page_title = 'Biblioteca IA - HackConcursos';
 require_once __DIR__ . '/../includes/header.php';
@@ -86,20 +106,27 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php foreach($editais as $e): ?>
                     <tr>
                         <td>
-                            <div class="fw-700"><?= sanitize($e['nome_concurso']) ?></div>
-                            <div style="font-size:0.75rem; color:var(--text-muted);"><?= sanitize($e['orgao']) ?></div>
+                            <div class="d-flex ai-center gap-sm">
+                                <?php if($e['imagem']): ?>
+                                    <img src="<?= APP_URL ?>/<?= $e['imagem'] ?>" style="width:60px; height:24px; object-fit:cover; border-radius:4px; border:1px solid var(--border-glass);">
+                                <?php endif; ?>
+                                <div>
+                                    <div class="fw-700"><?= sanitize($e['nome_concurso']) ?></div>
+                                    <div style="font-size:0.75rem; color:var(--text-muted);"><?= sanitize($e['orgao']) ?></div>
+                                </div>
+                            </div>
                         </td>
                         <td>
                             <div><?= sanitize($e['banca']) ?></div>
-                            <div style="font-size:0.75rem; color:var(--text-muted);"><?= $e['ano'] ?></div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);"><?= $e['data_prova'] ? date('d/m/Y', strtotime($e['data_prova'])) : 'A definir' ?></div>
                         </td>
-                        <td><span class="badge-hc badge-blue"><?= $e['categoria'] ?></span></td>
+                        <td><span class="badge-hc badge-blue"><?= $e['abrangencia'] ?: 'Nacional' ?></span></td>
                         <td>
                             <?php 
                             $status_class = ['aberto'=>'badge-neon', 'previsto'=>'badge-purple', 'encerrado'=>'badge-red'];
                             $st = $e['status'];
                             ?>
-                            <span class="badge-hc <?= $status_class[$st] ?? 'badge-blue' ?>"><?= ucfirst($st) ?></span>
+                            <span class="badge-hc <?= $status_class[$st] ?? 'badge-blue' ?>"><?= strtoupper($st) ?></span>
                         </td>
                         <td>
                             <div style="display:flex; gap:0.5rem;">
@@ -135,13 +162,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Modal Adicionar -->
 <div id="modal-add" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
-    <div class="card-glass" style="width:100%; max-width:500px;">
+    <div class="card-glass" style="width:100%; max-width:600px;">
         <div class="card-header-hc" style="display:flex; justify-content:space-between;">
-            <h5>Adicionar Concurso à Biblioteca</h5>
+            <h5>Adicionar Concurso de Elite</h5>
             <button class="btn-hc btn-ghost btn-sm" onclick="document.getElementById('modal-add').style.display='none'">&times;</button>
         </div>
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="create">
                 
                 <div class="form-group mb-md">
@@ -160,18 +187,21 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
 
-                <div class="grid-3 mb-md">
+                <div class="grid-2 mb-md">
                     <div class="form-group">
-                        <label>Ano</label>
-                        <input type="number" name="ano" class="form-control-hc" value="<?= date('Y') ?>" required>
+                        <label>Data da Prova</label>
+                        <input type="date" name="data_prova" class="form-control-hc">
                     </div>
                     <div class="form-group">
-                        <label>Categoria</label>
-                        <select name="categoria" class="form-control-hc">
-                            <option value="Nacional">Nacional</option>
-                            <option value="Estadual">Estadual</option>
-                            <option value="Municipal">Municipal</option>
-                        </select>
+                        <label>Abrangência</label>
+                        <input type="text" name="abrangencia" class="form-control-hc" placeholder="Ex: Nacional ou SP, RJ, MG">
+                    </div>
+                </div>
+
+                <div class="grid-2 mb-md">
+                    <div class="form-group">
+                        <label>Nº de Vagas</label>
+                        <input type="text" name="numero_vagas" class="form-control-hc" placeholder="Ex: 1.500 + CR">
                     </div>
                     <div class="form-group">
                         <label>Status</label>
@@ -183,7 +213,17 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
 
-                <button type="submit" class="btn-hc btn-neon w-100">Salvar e Analisar</button>
+                <div class="form-group mb-md">
+                    <label>Imagem do Card (800x200px)</label>
+                    <input type="file" name="imagem" class="form-control-hc" accept="image/*">
+                </div>
+
+                <div class="form-group mb-lg">
+                    <label>Edital (PDF)</label>
+                    <input type="file" name="edital_pdf" class="form-control-hc" accept=".pdf">
+                </div>
+
+                <button type="submit" class="btn-hc btn-neon w-100">Salvar Concurso</button>
             </form>
         </div>
     </div>

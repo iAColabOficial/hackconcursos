@@ -10,28 +10,49 @@ if (isset($_GET['selecionar'])) {
     $biblioteca_id = (int)$_GET['selecionar'];
     
     // Verificar se existe
-    $edital = $db->prepare("SELECT * FROM biblioteca_editais WHERE id = ?");
+    $edital = $db->prepare("SELECT * FROM lib_editais WHERE id = ?");
     $edital->execute([$biblioteca_id]);
     $dados = $edital->fetch();
 
     if ($dados) {
         try {
-            // Atualizar ou Criar Perfil do Usuário com este edital
-            $stmt = $db->prepare("
-                INSERT INTO perfis_usuario (usuario_id, biblioteca_edital_id) 
-                VALUES (?, ?) 
-                ON DUPLICATE KEY UPDATE biblioteca_edital_id = ?
+            // 1. Criar um registro na tabela 'editais' do usuário baseado na biblioteca
+            // Isso permite que o usuário tenha sua própria cópia para personalizar se necessário
+            $ins = $db->prepare("
+                INSERT INTO editais (usuario_id, nome_concurso, banca, status, conteudo_texto) 
+                VALUES (?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$usuario_id, $biblioteca_id, $biblioteca_id]);
+            $ins->execute([
+                $usuario_id, 
+                $dados['nome_concurso'], 
+                $dados['banca'], 
+                'ativo',
+                "Edital importado da biblioteca: " . $dados['nome_concurso']
+            ]);
+            $novoEditalId = $db->lastInsertId();
+
+            // 2. Importar disciplinas
+            $discQ = $db->prepare("SELECT * FROM lib_disciplinas WHERE lib_edital_id = ?");
+            $discQ->execute([$biblioteca_id]);
+            $disciplinas = $discQ->fetchAll();
+
+            $insDisc = $db->prepare("INSERT INTO disciplinas (edital_id, nome, peso) VALUES (?, ?, ?)");
+            foreach ($disciplinas as $d) {
+                $insDisc->execute([$novoEditalId, $d['nome'], $d['peso']]);
+            }
+
+            // 3. Vincular no perfil
+            $stmt = $db->prepare("UPDATE perfis_usuario SET edital_ativo_id = ? WHERE usuario_id = ?");
+            $stmt->execute([$novoEditalId, $usuario_id]);
 
             // Registrar Evento
             $stmtEv = $db->prepare("INSERT INTO eventos_usuario (usuario_id, evento, metadata) VALUES (?, ?, ?)");
             $stmtEv->execute([$usuario_id, 'selecionou_concurso', json_encode(['id' => $biblioteca_id, 'nome' => $dados['nome_concurso']])]);
 
-            flashMsg('success', 'Concurso selecionado com sucesso! Vamos iniciar seu diagnóstico.');
+            flashMsg('success', 'Alvo selecionado! Agora vamos configurar seu diagnóstico de partida.');
             redirect('diagnostico.php');
         } catch (Exception $e) {
-            flashMsg('danger', 'Erro ao selecionar concurso: ' . $e->getMessage());
+            flashMsg('danger', 'Erro ao importar concurso: ' . $e->getMessage());
         }
     }
 }
@@ -40,7 +61,7 @@ if (isset($_GET['selecionar'])) {
 $search = sanitize($_GET['q'] ?? '');
 $cat = sanitize($_GET['cat'] ?? '');
 
-$query = "SELECT * FROM biblioteca_editais WHERE status != 'encerrado'";
+$query = "SELECT * FROM lib_editais WHERE status != 'encerrado'";
 $params = [];
 
 if ($search) {
@@ -49,12 +70,7 @@ if ($search) {
     $params[] = "%$search%";
 }
 
-if ($cat) {
-    $query .= " AND categoria = ?";
-    $params[] = $cat;
-}
-
-$query .= " ORDER BY popularidade DESC, criado_em DESC";
+$query .= " ORDER BY criado_em DESC";
 $stmt = $db->prepare($query);
 $stmt->execute($params);
 $editais = $stmt->fetchAll();
@@ -73,7 +89,7 @@ require_once __DIR__ . '/../includes/header.php';
         <span class="sep">/</span>
         <span>Biblioteca de Concursos</span>
       </div>
-      <h2>🎯 Escolha seu Próximo Alvo</h2>
+      <h2><i class="bi bi-bullseye text-neon" style="font-size:1.4rem; margin-right:0.5rem; filter: drop-shadow(0 0 5px var(--neon-green-glow));"></i> Escolha seu Próximo Alvo</h2>
       <p>Selecione um dos concursos abaixo para gerar sua estratégia personalizada.</p>
     </div>
 
@@ -107,25 +123,40 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         <?php endif; ?>
 
-        <?php foreach($editais as $e): ?>
-        <div class="card-glass">
-            <div style="height:120px; background:linear-gradient(135deg, rgba(59,130,246,0.1), rgba(168,85,247,0.1)); border-radius:var(--radius-lg) var(--radius-lg) 0 0; display:flex; align-items:center; justify-content:center;">
-                <div style="font-size:3.5rem; opacity:0.8;">🏛️</div>
+        <?php foreach($editais as $e): 
+            $imgUrl = !empty($e['imagem']) ? APP_URL . '/' . $e['imagem'] : 'https://placehold.co/800x200/0c1424/22c55e?text=' . urlencode($e['orgao']);
+        ?>
+        <div class="card-glass" style="padding:0; overflow:hidden;">
+            <div style="height:140px; position:relative; overflow:hidden;">
+                <img src="<?= $imgUrl ?>" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">
+                <div style="position:absolute; inset:0; background:linear-gradient(to top, var(--dark-bg), transparent);"></div>
+                <div style="position:absolute; top:1rem; left:1rem;">
+                    <span class="badge-hc <?= $e['status'] == 'aberto' ? 'badge-neon' : 'badge-blue' ?>">
+                        <?= strtoupper($e['status']) ?>
+                    </span>
+                </div>
             </div>
-            <div class="card-body">
-                <span class="badge-hc badge-blue mb-sm"><?= $e['categoria'] ?></span>
-                <h4 class="lh-sm mb-xs"><?= sanitize($e['nome_concurso']) ?></h4>
-                <div class="text-muted" style="font-size:0.85rem; margin-bottom:1.5rem;">
-                    <i class="bi bi-bank"></i> <?= sanitize($e['orgao']) ?> &nbsp; 
-                    <i class="bi bi-briefcase"></i> <?= sanitize($e['banca']) ?> &nbsp;
-                    <i class="bi bi-calendar-event"></i> <?= $e['ano'] ?>
+            <div class="card-body" style="padding:1.25rem;">
+                <h4 class="lh-sm mb-xs" style="font-size:1.1rem;"><?= sanitize($e['nome_concurso']) ?></h4>
+                <div class="text-muted" style="font-size:0.8rem; margin-bottom:1.5rem;">
+                    <div class="d-flex jc-between mb-xs">
+                        <span><i class="bi bi-bank"></i> Órgão: <?= sanitize($e['orgao']) ?></span>
+                        <span class="text-white fw-700"><?= sanitize($e['abrangencia'] ?? 'Nacional') ?></span>
+                    </div>
+                    <div class="d-flex jc-between mb-xs">
+                        <span><i class="bi bi-briefcase"></i> Banca: <?= sanitize($e['banca']) ?></span>
+                        <span class="text-neon fw-700"><?= $e['numero_vagas'] ?? 'A definir' ?> vagas</span>
+                    </div>
+                    <?php if($e['data_prova']): ?>
+                        <span style="display:block;"><i class="bi bi-calendar-event"></i> Prova: <?= date('d/m/Y', strtotime($e['data_prova'])) ?></span>
+                    <?php endif; ?>
                 </div>
 
                 <div class="d-flex jc-between ai-center">
-                    <div class="text-neon fw-700" style="font-size:0.8rem;">
-                        <i class="bi bi-lightning-fill"></i> Estratégia Pronta
+                    <div class="text-neon fw-700" style="font-size:0.75rem;">
+                        <i class="bi bi-lightning-charge-fill"></i> IA PRONTA
                     </div>
-                    <a href="?selecionar=<?= $e['id'] ?>" class="btn-hc btn-neon btn-sm">Selecionar Alvo</a>
+                    <a href="?selecionar=<?= $e['id'] ?>" class="btn-hc btn-primary-hc btn-sm">Selecionar</a>
                 </div>
             </div>
         </div>
@@ -139,7 +170,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <h4 class="text-purple"><i class="bi bi-stars"></i> Não encontrou seu concurso?</h4>
                 <p class="text-muted" style="max-width:500px;">Seja <strong>Premium</strong> e suba qualquer edital em PDF para nossa IA processar exclusivamente para você.</p>
             </div>
-            <a href="../planos.php" class="btn-hc btn-ai">Upgrade Modo Guerra</a>
+            <?php if ($_SESSION['plano'] === 'premium'): ?>
+                <a href="upload_edital.php" class="btn-hc btn-ai">Subir Edital PDF</a>
+            <?php else: ?>
+                <a href="meu_plano.php" class="btn-hc btn-ai">Upgrade Modo Guerra</a>
+            <?php endif; ?>
         </div>
     </div>
 

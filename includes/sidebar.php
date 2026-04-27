@@ -70,11 +70,11 @@ function sidebarItem(string $href, string $icon, string $label, string $current,
     <span class="badge-hc <?= $plano_class[$p] ?>"><?= $plano_label[$p] ?></span>
     
     <?php if ($p !== 'premium'): ?>
-    <div class="mt-xs" style="font-size:0.75rem; color:var(--accent-purple); margin-top:0.5rem;">
-        <i class="bi bi-coin"></i> <?= $tokens ?> Tokens IA
+    <div class="mt-xs" style="font-size:0.75rem; color:#fbbf24; margin-top:0.5rem; font-weight:700; display:flex; align-items:center; gap:0.4rem;">
+        <i class="bi bi-lightning-charge-fill"></i> <?= $tokens ?> Energia
     </div>
-    <a href="<?= APP_URL ?>/planos.php" class="btn-hc btn-neon btn-sm mt-xs w-100" style="margin-top:0.6rem;">
-       🚀 Upgrade
+    <a href="<?= APP_URL ?>/planos.php" class="btn-hc btn-neon btn-sm mt-xs w-100" style="margin-top:0.6rem; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+       <i class="bi bi-rocket-takeoff-fill"></i> Upgrade
     </a>
     <?php endif; ?>
 
