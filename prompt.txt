@@ -1,0 +1,264 @@
+Você é um arquiteto de software sênior especializado em sistemas web SaaS educacionais, com experiência em PHP, MySQL, JavaScript e integração com APIs de inteligência artificial.
+
+Quero que você crie um sistema web completo chamado HackConcursos, pensado para ser hospedado na Hostinger, rodando em navegador e funcionando perfeitamente em desktop, tablet e celular, com layout totalmente responsivo.
+
+O sistema não deve ser app mobile e não deve usar React Native.
+Ele deve ser desenvolvido como plataforma web completa, acessível por login, com frontend responsivo e backend em PHP.
+
+OBJETIVO DO SISTEMA
+
+Criar uma plataforma online para concursos públicos em que o usuário possa:
+
+fazer upload de edital em PDF
+extrair automaticamente as informações mais importantes do edital
+gerar um plano de estudos inteligente
+acompanhar seu progresso
+receber sugestões de materiais da loja
+tirar dúvidas sobre o edital via IA
+fazer simulados personalizados
+usar o sistema em qualquer dispositivo
+TECNOLOGIAS OBRIGATÓRIAS
+
+Desenvolva o projeto com:
+
+Backend: PHP puro ou PHP estruturado em MVC simples
+Banco de dados: MySQL
+Frontend: HTML5, CSS3, JavaScript
+Framework CSS: Bootstrap para responsividade
+Integração IA: OpenAI ou Gemini via API
+Upload de arquivos: PHP
+Hospedagem alvo: Hostinger
+Compatibilidade: sistema web responsivo para todas as telas
+
+Evite tecnologias que dependam de VPS, Docker, build complexo ou ambiente avançado de deploy.
+
+ESTRUTURA DO SISTEMA
+
+O sistema deve ter:
+
+1. Área pública
+página inicial
+página de planos
+página de login
+página de cadastro
+página de recuperação de senha
+página da loja de materiais
+2. Área do aluno
+dashboard principal
+upload de edital
+seleção de cargo
+formulário de diagnóstico
+plano de estudos
+acompanhamento de tarefas
+simulados
+progresso do edital
+tira-dúvidas com IA
+recomendações de materiais
+perfil do usuário
+3. Área administrativa
+painel admin
+gerenciamento de usuários
+gerenciamento de editais enviados
+gerenciamento de produtos da loja
+gerenciamento de planos de estudo
+relatórios de uso
+acompanhamento de desempenho geral
+FUNCIONALIDADES PRINCIPAIS
+A. Parser de Edital
+
+Criar uma funcionalidade onde o usuário faz upload de um PDF e o sistema:
+
+lê o conteúdo do edital
+identifica automaticamente:
+nome do concurso
+banca
+data da prova
+cargos disponíveis
+disciplinas cobradas
+conteúdos programáticos
+pesos das matérias, quando existirem
+caso o edital tenha vários cargos, permitir que o aluno escolha qual deseja estudar
+
+A IA deve transformar o conteúdo do PDF em dados organizados para salvar no banco.
+
+B. Diagnóstico do Aluno
+
+Criar um formulário para o aluno informar:
+
+quantas horas por dia tem disponíveis
+quais dias da semana estuda
+qual dia quer folgar
+nível em cada disciplina:
+iniciante
+intermediário
+avançado
+dificuldade maior em determinadas matérias
+
+Esses dados devem ser usados para personalizar o plano.
+
+C. Gerador Inteligente de Plano de Estudos
+
+Criar uma lógica que:
+
+monte ciclos de estudo dinâmicos
+distribua o tempo com base:
+no peso da disciplina
+na dificuldade do aluno
+na proximidade da prova
+inclua revisões automáticas:
+24 horas
+7 dias
+30 dias
+reorganize o cronograma caso o aluno atrase tarefas
+
+O plano deve ser exibido em formato visual amigável, responsivo e fácil de marcar como concluído.
+
+D. Dashboard de Evolução
+
+Criar painel com:
+
+percentual de cobertura do edital
+horas estudadas
+horas previstas
+tarefas concluídas
+tarefas pendentes
+disciplinas mais fortes
+disciplinas mais fracas
+gráfico de evolução
+barra visual de progresso do edital
+E. Simulados Inteligentes
+
+Criar módulo de simulados onde o sistema:
+
+gera quizzes com base no edital
+seleciona questões por disciplina
+registra erros e acertos
+recalcula prioridades do plano de estudos com base no desempenho
+F. Tira-Dúvidas do Edital
+
+Criar um chat dentro do sistema onde o aluno pode perguntar coisas como:
+
+posso usar caneta azul?
+qual o critério de desempate?
+o cargo exige nível superior?
+quais documentos são exigidos?
+
+A IA deve responder com base no edital enviado pelo usuário.
+
+G. Integração com Loja
+
+Criar um módulo de loja onde:
+
+cada disciplina ou tópico pode ter materiais vinculados
+o sistema sugere produtos conforme o que falta estudar
+exibir botão:
+“Completar meu edital”
+adicionar automaticamente ao carrinho os materiais recomendados
+
+Exemplo:
+“Você ainda não possui material para Direito Penal e Processo Penal. Deseja adicionar os PDFs recomendados ao carrinho?”
+
+H. Gamificação
+
+Criar elementos como:
+
+ranking de horas estudadas
+medalhas por consistência
+sequência de dias estudados
+barra de evolução do edital
+metas semanais
+RESPONSIVIDADE
+
+O sistema deve ser criado com foco em uso em todas as telas:
+
+desktop
+notebook
+tablet
+celular
+
+Use Bootstrap e boas práticas de layout fluido.
+Todos os painéis, tabelas, cards, formulários e gráficos devem funcionar bem em telas pequenas e grandes.
+
+BANCO DE DADOS
+
+Crie a modelagem completa com tabelas como:
+
+usuarios
+perfis_usuario
+editais
+cargos
+disciplinas
+topicos_edital
+diagnosticos
+planos_estudo
+tarefas_estudo
+revisoes
+simulados
+perguntas_simulados
+respostas_usuario
+progresso_usuario
+produtos
+carrinho
+pedidos
+mensagens_chat_edital
+configuracoes
+
+Inclua relacionamentos corretos, chaves primárias e estrangeiras.
+
+ESTRUTURA DE PASTAS
+
+Crie uma estrutura organizada, por exemplo:
+
+/public
+/assets/css
+/assets/js
+/assets/img
+/uploads/editais
+/admin
+/aluno
+/includes
+/config
+/classes
+/controllers
+/models
+/views
+/sql
+SEGURANÇA
+
+Implemente boas práticas como:
+
+login com senha criptografada
+sessões seguras
+proteção contra SQL Injection
+proteção contra XSS
+validação de upload de arquivos
+controle de acesso por perfil
+proteção de rotas
+tratamento de erros
+O QUE EU QUERO QUE VOCÊ GERE
+
+Quero que você entregue:
+
+visão geral da arquitetura
+estrutura de pastas
+modelagem do banco de dados MySQL
+script SQL completo
+telas principais do sistema
+código base em PHP
+frontend responsivo com Bootstrap
+lógica do parser de edital
+exemplo de integração com API da OpenAI ou Gemini
+algoritmo do plano de estudos
+fluxo completo do usuário
+painel administrativo
+instruções exatas para publicar na Hostinger
+REGRAS IMPORTANTES
+não criar app mobile
+não usar React Native
+pensar em sistema web completo
+responsivo para todas as telas
+compatível com hospedagem Hostinger
+fácil de manter
+visual moderno, limpo e profissional
+código organizado e funcional
+estrutura escalável para futuro SaaS

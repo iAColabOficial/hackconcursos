@@ -1,0 +1,6 @@
+2026-04-26 10:45:22 - Evento: checkout.session.completed
+2026-04-26 10:55:15 - Evento: charge.succeeded
+2026-04-26 10:55:15 - Evento: payment_intent.succeeded
+2026-04-26 10:55:15 - Evento: checkout.session.completed
+2026-04-26 10:55:15 - Evento: payment_intent.created
+2026-04-26 10:55:17 - Evento: charge.updated
