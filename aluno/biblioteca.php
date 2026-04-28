@@ -48,7 +48,7 @@ if (isset($_POST['finalizar_selecao'])) {
             $insTop  = $db->prepare("INSERT INTO topicos_edital (disciplina_id, nome, cobrado_frequentemente) VALUES (?, ?, ?)");
 
             foreach ($disciplinas as $d) {
-                $insDisc->execute([$novoCargoId, $d['nome'], $d['peso_padrao']]);
+                $insDisc->execute([$novoCargoId, $d['nome'], $d['peso']]);
                 $novaDiscId = $db->lastInsertId();
 
                 // Buscar tópicos da biblioteca para esta disciplina
@@ -185,9 +185,16 @@ require_once __DIR__ . '/../includes/header.php';
         .cargo-radio:checked + .cargo-opt { border-color: var(--accent-blue) !important; background: rgba(59,130,246,0.1) !important; }
         .cargo-radio:checked + .cargo-opt .check-ico { opacity: 1 !important; }
     </style>
-    <?php elseif($selecionado_id): ?>
-        <!-- Script para auto-selecionar se não houver cargos (Geral) -->
+    <?php elseif($selecionado_id && !isset($_GET['auto'])): ?>
+        <!-- Script para evitar loop se não houver cargos -->
         <script>window.location.href = '?selecionar=<?= $selecionado_id ?>&auto=1';</script>
+    <?php elseif($selecionado_id && isset($_GET['auto'])): ?>
+        <div class="card-glass text-center p-xl">
+            <i class="bi bi-exclamation-triangle text-warning" style="font-size:3rem;"></i>
+            <h4 class="mt-md">Nenhum cargo cadastrado</h4>
+            <p class="text-muted">Este edital não possui cargos detalhados na biblioteca. Entre em contato com o suporte ou tente outro concurso.</p>
+            <a href="biblioteca.php" class="btn-hc btn-primary-hc mt-md">Voltar para Biblioteca</a>
+        </div>
     <?php endif; ?>
 
     <!-- Grid de Cards -->

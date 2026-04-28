@@ -18,7 +18,7 @@ include __DIR__ . '/../includes/header_aluno.php';
 
     <main class="main-content">
         <!-- TOPO (HUD FIXO) -->
-        <header class="hud-container mb-md">
+        <header class="hud-container mb-md" id="hud-stats">
             <div class="card-glass p-3 d-flex jc-between ai-center">
                 <div class="d-flex gap-lg">
                     <div class="hud-item">
@@ -38,7 +38,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                         <div class="fw-800" style="color: <?= $m['risco']['color'] ?>"><?= $m['risco']['label'] ?></div>
                     </div>
                 </div>
-                <button class="btn-hc btn-ai btn-sm" onclick="location.href='insights.php'">
+                <button class="btn-hc btn-ai btn-sm" id="btn-activate-ia" onclick="location.href='insights.php'">
                     ✨ ATIVAR IA (SKILL)
                 </button>
             </div>
@@ -81,7 +81,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                 </div>
 
                 <!-- LINHA 2: MISSÃO ATUAL -->
-                <section class="mission-center mb-lg">
+                <section class="mission-center mb-lg" id="current-mission">
                     <?php if ($m['missao']): ?>
                         <div class="card-glass border-neon" style="border-width: 2px;">
                             <div class="card-body d-flex jc-between ai-center">
@@ -171,7 +171,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                     </div>
                 </div>
 
-                <div class="card-glass p-4 border-neon" style="background: linear-gradient(180deg, rgba(168,85,247,0.05), transparent);">
+                <div class="card-glass p-4 border-neon" id="ia-scanner-card" style="background: linear-gradient(180deg, rgba(168,85,247,0.05), transparent);">
                     <h5 class="fw-800 mb-xs text-purple">✨ Scanner IA</h5>
                     <p class="text-secondary mb-md" style="font-size: 0.85rem;">
                         "Você está repetindo o mesmo erro em crase. A IA pode identificar o padrão mental."

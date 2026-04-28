@@ -25,7 +25,7 @@ def get_strategic_base(target_id, target_type='cargo'):
     
     # 1. Buscar disciplinas conforme o tipo
     if target_type == 'biblioteca':
-        cursor.execute("SELECT id, nome, peso_padrao as peso FROM biblioteca_disciplinas WHERE biblioteca_edital_id = %s", (target_id,))
+        cursor.execute("SELECT id, nome, peso FROM biblioteca_disciplinas WHERE biblioteca_edital_id = %s", (target_id,))
     else:
         cursor.execute("SELECT id, nome, peso FROM disciplinas WHERE cargo_id = %s", (target_id,))
     
@@ -98,6 +98,6 @@ if __name__ == "__main__":
     
     try:
         resultado = get_strategic_base(target_id, target_type)
-        print(json.dumps(resultado, ensure_ascii=False))
+        print(json.dumps(resultado, ensure_ascii=True))
     except Exception as e:
         print(json.dumps({"error": str(e)}))

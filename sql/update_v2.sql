@@ -77,9 +77,10 @@ CREATE TABLE IF NOT EXISTS `eventos_usuario` (
   FOREIGN KEY (`usuario_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 7. Vínculo entre Usuário e Edital da Biblioteca
+-- 7. Vínculo entre Usuário e Edital da Biblioteca e Onboarding
 ALTER TABLE `perfis_usuario` 
 ADD COLUMN `biblioteca_edital_id` INT UNSIGNED DEFAULT NULL AFTER `usuario_id`,
+ADD COLUMN `onboarding_visto` TINYINT(1) DEFAULT 0 AFTER `nivel_geral`,
 ADD CONSTRAINT `fk_perfil_biblioteca` FOREIGN KEY (`biblioteca_edital_id`) REFERENCES `biblioteca_editais`(`id`) ON DELETE SET NULL;
 
 SET foreign_key_checks = 1;

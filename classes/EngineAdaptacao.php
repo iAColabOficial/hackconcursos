@@ -37,7 +37,27 @@ class EngineAdaptacao {
         $base = $this->getBaseEstrategica($targetId, $targetType);
         if (isset($base['error'])) return $base;
 
-        // 3. Criar o Plano de Estudo no banco se não existir
+        // 3. Resolver ID do Cargo Local
+        $localCargoId = null;
+        if ($targetType == 'biblioteca') {
+            // Buscar o cargo selecionado do edital mais recente importado pelo usuário
+            $stmtC = $this->db->prepare("
+                SELECT c.id FROM cargos c
+                JOIN editais e ON e.id = c.edital_id
+                WHERE e.usuario_id = ? AND c.selecionado = 1
+                ORDER BY e.criado_em DESC LIMIT 1
+            ");
+            $stmtC->execute([$usuarioId]);
+            $localCargoId = $stmtC->fetchColumn();
+        } else {
+            $localCargoId = $targetId;
+        }
+
+        if (!$localCargoId) {
+            return ['error' => 'Cargo local não encontrado. Por favor, selecione um concurso primeiro.'];
+        }
+
+        // 4. Criar o Plano de Estudo no banco se não existir
         $stmtCheck = $this->db->prepare("SELECT id FROM planos_estudo WHERE usuario_id = ? AND ativo = 1 LIMIT 1");
         $stmtCheck->execute([$usuarioId]);
         $planoExistente = $stmtCheck->fetch();
@@ -48,7 +68,7 @@ class EngineAdaptacao {
             $this->db->prepare("DELETE FROM tarefas_estudo WHERE plano_id = ? AND concluida = 0")->execute([$planoId]);
         } else {
             $stmt = $this->db->prepare("INSERT INTO planos_estudo (usuario_id, cargo_id, data_inicio, ativo) VALUES (?, ?, CURDATE(), 1)");
-            $stmt->execute([$usuarioId, ($targetType == 'cargo' ? $targetId : null)]);
+            $stmt->execute([$usuarioId, $localCargoId]);
             $planoId = $this->db->lastInsertId();
         }
 

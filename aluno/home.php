@@ -20,7 +20,7 @@ include __DIR__ . '/../includes/header_aluno.php';
 
     <main class="main-content">
         <!-- HUD SUPERIOR -->
-        <header class="d-flex jc-between ai-end mb-lg">
+        <header class="d-flex jc-between ai-end mb-lg" id="hud-stats">
             <div>
                 <h1 class="fw-900 mb-xs" style="font-size: 1.8rem;">Rumo à Aprovação!</h1>
                 <p class="text-secondary">Sua jornada épica começou. Cada minuto conta.</p>
@@ -73,7 +73,7 @@ include __DIR__ . '/../includes/header_aluno.php';
             <!-- COLUNA CENTRAL -->
             <div class="col-md-8">
                 <!-- MISSÃO ATIVA -->
-                <section class="card-glass mb-lg border-neon" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), transparent);">
+                <section class="card-glass mb-lg border-neon" id="current-mission" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), transparent);">
                     <div class="card-body">
                         <div class="d-flex jc-between ai-start mb-md">
                             <div>
@@ -132,7 +132,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                             <span class="text-secondary">Quer descobrir o padrão e parar de perder pontos?</span>
                         </div>
                     </div>
-                    <button class="btn-hc btn-ai btn-sm">USAR SCANNER IA</button>
+                    <button class="btn-hc btn-ai btn-sm" id="btn-activate-ia">USAR SCANNER IA</button>
                 </div>
 
                 <div class="row">
