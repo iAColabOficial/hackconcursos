@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['perfil']     = 'aluno';
                 $_SESSION['plano']      = 'free';
                 
-                redirect(APP_URL . '/aluno/biblioteca.php');
+                redirect(APP_URL . '/aluno/home.php');
             }
         } catch (PDOException $e) {
             $erro = 'Erro ao criar conta. Tente novamente.';

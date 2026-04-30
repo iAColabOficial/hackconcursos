@@ -10,8 +10,8 @@ function startOnboarding() {
         {
             element: '#hud-stats',
             popover: {
-                title: 'Seu Status em Tempo Real',
-                description: 'Aqui você monitora seu Nível, Streak de estudos e sua Energia (Tokens) disponível para usar a IA.',
+                title: 'Status do Sistema',
+                description: 'Aqui você monitora seu Domínio, Sequência de estudos e as Cargas de Energia disponíveis para usar a IA.',
                 side: "bottom",
                 align: 'start'
             }
@@ -19,8 +19,8 @@ function startOnboarding() {
         {
             element: '#current-mission',
             popover: {
-                title: 'Sua Próxima Batalha',
-                description: 'O sistema analisa seu edital e desempenho para gerar a missão mais importante para sua aprovação hoje.',
+                title: 'Seu Próximo Foco',
+                description: 'O sistema analisa seu edital e desempenho para identificar o ponto de maior retorno para sua evolução hoje.',
                 side: "bottom",
                 align: 'center'
             }
@@ -28,8 +28,8 @@ function startOnboarding() {
         {
             element: '#btn-activate-ia',
             popover: {
-                title: 'Poder de Fogo',
-                description: 'Use suas Skills de IA para obter diagnósticos profundos e resolver gargalos de aprendizado rapidamente.',
+                title: 'Capacidade de Análise',
+                description: 'Use as ferramentas de IA para obter diagnósticos profundos e remover gargalos de aprendizado rapidamente.',
                 side: "left",
                 align: 'center'
             }
@@ -37,16 +37,16 @@ function startOnboarding() {
         {
             element: '#sidebar',
             popover: {
-                title: 'Seu Arsenal',
-                description: 'Navegue entre simulados, plano de estudos e o chat direto com o Consultor IA.',
+                title: 'Suas Ferramentas',
+                description: 'Navegue entre o caminho de evolução, simulados e o chat direto com o Consultor IA.',
                 side: "right",
                 align: 'center'
             }
         },
         {
             popover: {
-                title: 'Pronto para a Guerra?',
-                description: 'Agora é com você. Cumpra suas missões diárias e acompanhe sua evolução até a posse!',
+                title: 'Pronto para Otimizar?',
+                description: 'Agora é com você. Cumpra seus sprints diários e acompanhe sua evolução até a posse!',
             }
         }
     ];
@@ -65,7 +65,7 @@ function startOnboarding() {
         overlayOpacity: 0.85,
         nextBtnText: 'Próximo —>',
         prevBtnText: '<— Voltar',
-        doneBtnText: 'Entendido, soldado!',
+        doneBtnText: 'Entendido, Mastermind!',
         steps: activeSteps,
         onDestroyStarted: () => {
             const activeIndex = tour.getActiveIndex();

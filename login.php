@@ -3,7 +3,7 @@ require_once __DIR__ . '/config/config.php';
 iniciarSessao();
 
 if (usuarioLogado()) {
-    redirect(APP_URL . '/aluno/dashboard.php');
+    redirect(APP_URL . '/aluno/home.php');
 }
 
 $erro = '';
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $dest = $user['perfil'] === 'admin'
                     ? APP_URL . '/admin/index.php'
-                    : APP_URL . '/aluno/dashboard.php';
+                    : APP_URL . '/aluno/home.php';
                 redirect($dest);
             } else {
                 $erro = 'E-mail ou senha incorretos.';

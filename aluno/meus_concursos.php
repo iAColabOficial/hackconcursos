@@ -9,6 +9,11 @@ exigirLogin('../login.php');
 $db = getDB();
 $uid = (int)$_SESSION['usuario_id'];
 
+// Limites do Plano
+$limite = ($_SESSION['plano'] === 'premium') ? LIMIT_TARGETS_TURBO : (($_SESSION['plano'] === 'anual') ? LIMIT_TARGETS_MASTERMIND : LIMIT_TARGETS_ACESSO);
+$atual  = getContagemAlvos($uid);
+$bloqueado = ($atual >= $limite);
+
 // Ação de Excluir
 if (isset($_GET['delete'])) {
     $delId = (int)$_GET['delete'];
@@ -31,6 +36,11 @@ $concursosQ = $db->prepare("
 $concursosQ->execute([$uid]);
 $concursos = $concursosQ->fetchAll();
 
+// Buscar sugestões pendentes
+$sugestoesQ = $db->prepare("SELECT * FROM biblioteca_editais WHERE usuario_id = ? AND situacao_adm = 'pendente'");
+$sugestoesQ->execute([$uid]);
+$sugestoes = $sugestoesQ->fetchAll();
+
 $page_title = 'Meus Concursos';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -44,9 +54,15 @@ require_once __DIR__ . '/../includes/header.php';
                 <h2 class="fw-900 mb-1">Meus Concursos</h2>
                 <p class="text-secondary">Gerencie suas jornadas de estudo e metas.</p>
             </div>
-            <a href="upload_edital.php" class="btn-hc btn-primary-hc">
-                <i class="bi bi-plus-lg"></i> Novo Concurso
-            </a>
+            <?php if ($bloqueado): ?>
+                <button class="btn-hc btn-ghost btn-sm" onclick="alert('Limite de <?= $limite ?> alvo atingido. Remova o atual ou faça upgrade para adicionar outro.')">
+                    <i class="bi bi-lock-fill"></i> Novo Concurso
+                </button>
+            <?php else: ?>
+                <a href="upload_edital.php" class="btn-hc btn-primary-hc">
+                    <i class="bi bi-plus-lg"></i> Novo Concurso
+                </a>
+            <?php endif; ?>
         </div>
 
         <?php if (empty($concursos)): ?>
@@ -55,8 +71,14 @@ require_once __DIR__ . '/../includes/header.php';
                     <i class="bi bi-bullseye text-neon" style="font-size:4rem; filter: drop-shadow(0 0 10px var(--neon-green-glow));"></i>
                 </div>
                 <h4>Você ainda não tem concursos cadastrados.</h4>
-                <p class="text-secondary mb-4">Comece agora e crie seu primeiro plano de estudos tático.</p>
-                <a href="upload_edital.php" class="btn-hc btn-primary-hc btn-lg">Criar Meu Primeiro Plano</a>
+                <p class="text-secondary mb-4">Seu progresso aparecerá aqui assim que seu edital for aprovado ou selecionado.</p>
+                <?php if (!$bloqueado): ?>
+                    <a href="biblioteca.php" class="btn-hc btn-primary-hc btn-lg">Escolher Meu Primeiro Concurso</a>
+                <?php else: ?>
+                    <div class="alert-hc alert-info d-inline-flex ai-center gap-sm">
+                        <i class="bi bi-hourglass-split"></i> Aguardando aprovação da sua sugestão para liberar o plano.
+                    </div>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="grid-2">
@@ -103,6 +125,37 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- SEÇÃO DE SUGESTÕES PENDENTES -->
+        <?php if (!empty($sugestoes)): ?>
+            <div class="mt-xl">
+                <div class="d-flex ai-center gap-sm mb-md">
+                    <h3 class="fw-800 mb-0">Sugestões em Análise</h3>
+                    <span class="badge-hc badge-muted"><?= count($sugestoes) ?></span>
+                </div>
+                <div class="grid-2">
+                    <?php foreach ($sugestoes as $s): ?>
+                        <div class="card-glass" style="border-style: dashed; border-color: var(--border-glass); opacity: 0.8;">
+                            <div class="card-body p-4 d-flex ai-center jc-between">
+                                <div>
+                                    <h5 class="fw-700 mb-1"><?= sanitize($s['nome_concurso']) ?></h5>
+                                    <div class="text-muted small">
+                                        <i class="bi bi-bank"></i> <?= sanitize($s['orgao'] ?? '---') ?> | 
+                                        <i class="bi bi-clock-history"></i> Enviado em: <?= date('d/m/Y', strtotime($s['criado_em'])) ?>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="badge-hc badge-warning">
+                                        <i class="bi bi-hourglass-split me-1"></i> EM ANÁLISE
+                                    </span>
+                                    <div class="text-muted mt-2" style="font-size: 0.65rem;">Liberação em até 24h</div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
         <?php endif; ?>
     </main>

@@ -41,8 +41,29 @@ define('GEMINI_BASE_URL','https://generativelanguage.googleapis.com/v1beta/model
 // Configurações do Stripe
 define('STRIPE_PUBLIC_KEY', env('STRIPE_PUBLIC_KEY'));
 define('STRIPE_SECRET_KEY', env('STRIPE_SECRET_KEY'));
-define('PRICE_MODO_GUERRA', env('STRIPE_PRICE_MODO_GUERRA'));
-define('PRICE_50_TOKENS',   env('STRIPE_PRICE_50_TOKENS'));
+define('PRICE_MODO_TURBO',  env('STRIPE_PRICE_MODO_TURBO',  'price_turbo_id'));
+define('PRICE_MASTERMIND',  env('STRIPE_PRICE_MASTERMIND', 'price_mastermind_id'));
+
+// --- DEFINIÇÕES DE PLANOS E ENERGIA (GAMESYSTEM) ---
+define('PLANO_ACESSO',    'free');      // Modo Discovery
+define('PLANO_TURBO',     'premium');   // Modo Turbo (Mensal)
+define('PLANO_MASTERMIND', 'anual');     // Modo Mastermind (Anual)
+
+// Custos de Energia (Tokens)
+define('COST_IA_TIPS',      1);  // Consultor IA (Dicas)
+define('COST_IA_SCANNER',   5);  // Scanner de Padrões (Falhas)
+define('COST_IA_REROUTE',  20);  // Ajuste de Rota Inteligente
+define('COST_IA_SIMULADO', 30);  // Gerar Simulado IA
+
+// Limites de Alvos (Editais)
+define('LIMIT_TARGETS_ACESSO',  1);
+define('LIMIT_TARGETS_TURBO',   3);
+define('LIMIT_TARGETS_MASTERMIND', 999);
+
+// Cargas de Energia Iniciais/Mensais
+define('RECHARGE_ACESSO',     5);   // Carga única não renovável
+define('RECHARGE_TURBO',    250);   // Renovação mensal
+define('RECHARGE_MASTERMIND', 600); // Renovação mensal
 
 // Direas das pastas (Ajustadas para Hospedagem)
 define('BASE_PATH',      dirname(__DIR__));
@@ -159,6 +180,25 @@ function gerarToken(int $length = 32): string {
 function redirect(string $url): void {
     header("Location: $url");
     exit;
+}
+
+/**
+ * Conta o total de alvos ativos e sugestões pendentes do usuário
+ */
+function getContagemAlvos(int $usuario_id): int {
+    $db = getDB();
+    
+    // 1. Contar editais ativos
+    $st1 = $db->prepare("SELECT COUNT(*) FROM editais WHERE usuario_id = ? AND ativo = 1");
+    $st1->execute([$usuario_id]);
+    $ativos = (int)$st1->fetchColumn();
+    
+    // 2. Contar sugestões na fila de análise
+    $st2 = $db->prepare("SELECT COUNT(*) FROM biblioteca_editais WHERE usuario_id = ? AND situacao_adm = 'pendente'");
+    $st2->execute([$usuario_id]);
+    $pendentes = (int)$st2->fetchColumn();
+    
+    return $ativos + $pendentes;
 }
 
 function flashMsg(string $tipo, string $msg): void {

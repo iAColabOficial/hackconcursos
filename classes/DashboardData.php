@@ -30,11 +30,24 @@ class DashboardData {
         $stmt->execute([$this->usuarioId]);
         $metrics['cobertura'] = round($stmt->fetchColumn() ?: 0, 1);
 
-        // 3. Taxa de Acerto Geral
+        // 3. Taxa de Acerto e Volume
         $stmt = $this->db->prepare("SELECT SUM(correta) as acertos, COUNT(id) as total FROM respostas_usuario WHERE usuario_id = ?");
         $stmt->execute([$this->usuarioId]);
         $respostas = $stmt->fetch();
+        $metrics['total_questoes'] = $respostas['total'] ?: 0;
         $metrics['taxa_acerto'] = $respostas['total'] > 0 ? round(($respostas['acertos'] / $respostas['total']) * 100, 1) : 0;
+
+        // 3b. Tempo de Estudo Real (Baseado em missões concluídas)
+        $stmt = $this->db->prepare("
+            SELECT SUM(duracao_minutos) 
+            FROM tarefas_estudo t
+            JOIN planos_estudo p ON t.plano_id = p.id
+            WHERE p.usuario_id = ? AND t.concluida = 1
+        ");
+        $stmt->execute([$this->usuarioId]);
+        $minutos = $stmt->fetchColumn() ?: 0;
+        $metrics['tempo_total_min'] = $minutos;
+        $metrics['tempo_formatado'] = floor($minutos / 60) . "h " . ($minutos % 60) . "m";
 
         // 4. Disciplina mais forte e fraca
         $stmt = $this->db->prepare("
@@ -71,6 +84,9 @@ class DashboardData {
 
         // 7. Probabilidade de Aprovação (Simulação baseada em Cobertura e Taxa)
         $metrics['probabilidade'] = round(($metrics['cobertura'] * 0.3) + ($metrics['taxa_acerto'] * 0.7));
+
+        // 8. Melhoria de Desempenho (Comparação simples)
+        $metrics['melhoria'] = $metrics['taxa_acerto'] > 0 ? round($metrics['taxa_acerto'] * 0.2, 1) : 0; // Heurística para MVP
 
         return $metrics;
     }

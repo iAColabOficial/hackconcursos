@@ -1147,8 +1147,8 @@ try {
                     </div>
                     <div class="timeline-card animate-on-scroll">
                         <span class="timeline-number">03</span>
-                        <h3>Missões Táticas</h3>
-                        <p>Sem cronogramas irreais. O sistema gera missões diárias curtas baseadas na sua curva de esquecimento. Cumpra a missão e vá viver.</p>
+                        <h3>Sprints de Estudo</h3>
+                        <p>Sem cronogramas irreais. O sistema gera focos diários curtos baseados na sua curva de esquecimento. Cumpra o foco e vá viver.</p>
                     </div>
                     <div class="timeline-card animate-on-scroll">
                         <span class="timeline-number">04</span>
@@ -1302,7 +1302,7 @@ try {
                     <div class="plan-price">Gratuito</div>
                     <ul class="plan-features">
                         <li><i class="bi bi-check-circle-fill"></i> Acesso ao plano básico</li>
-                        <li><i class="bi bi-check-circle-fill"></i> Missão do dia</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Foco do dia</li>
                         <li class="disabled"><i class="bi bi-x-circle"></i> Raio-X do edital (limitado)</li>
                         <li class="disabled"><i class="bi bi-x-circle"></i> Simulados básicos</li>
                     </ul>
@@ -1438,7 +1438,7 @@ try {
                         <i class="bi bi-plus-lg"></i>
                     </div>
                     <div class="faq-answer">
-                        Imediato. Assim que o pagamento for aprovado, seu painel de guerra é liberado e em menos de 3 minutos sua primeira missão tática já estará na tela.
+                        Imediato. Assim que o pagamento for aprovado, sua central de evolução é liberada e em menos de 3 minutos seu primeiro sprint já estará na tela.
                     </div>
                 </div>
             </div>

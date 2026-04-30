@@ -24,14 +24,15 @@ function sidebarItem(string $href, string $icon, string $label, string $current,
 <?php if (!$is_admin): ?>
     <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">INÍCIO</div>
     <?= sidebarItem($base . '/home.php',          'house-door',      'Visão Geral',       $current_page) ?>
-    <?= sidebarItem($base . '/dashboard.php',     'crosshair',       'Missão Atual',      $current_page) ?>
+    <?= sidebarItem($base . '/meus_concursos.php', 'bullseye',        'Meus Concursos',    $current_page) ?>
+    <?= sidebarItem($base . '/dashboard.php',     'crosshair',       'Foco do Dia',       $current_page) ?>
 
     <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">EXECUÇÃO</div>
-    <?= sidebarItem($base . '/plano_estudos.php', 'list-task',       'Plano de Estudo',   $current_page) ?>
+    <?= sidebarItem($base . '/plano_estudos.php', 'list-task',       'Caminho de Evolução', $current_page) ?>
     <?= sidebarItem($base . '/simulados.php',     'patch-question',  'Simulados',         $current_page) ?>
 
     <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--warning);">INTELIGÊNCIA <i class="bi bi-lock-fill small" style="opacity:0.5"></i></div>
-    <?= sidebarItem($base . '/scanner_erros.php',  'shield-exclamation','Scanner de Erros', $current_page) ?>
+    <?= sidebarItem($base . '/scanner_erros.php',  'shield-exclamation','Scanner de Padrões', $current_page) ?>
     <?= sidebarItem($base . '/insights.php',       'graph-up-arrow',  'Insights',          $current_page) ?>
 
     <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem; color:var(--neon-green);">ARSENAL</div>
@@ -65,10 +66,10 @@ function sidebarItem(string $href, string $icon, string $label, string $current,
     $p = $_SESSION['plano'] ?? 'free';
     $tokens = $_SESSION['token_saldo'] ?? 0;
     
-    $plano_label = ['free'=>'Plano Gratuito','premium'=>'Modo Guerra ⚡'];
-    $plano_class = ['free'=>'badge-blue','premium'=>'badge-neon'];
+    $plano_label = ['free'=>'Modo Discovery','premium'=>'Modo Turbo ⚡', 'anual' => 'Modo Mastermind 🧠'];
+    $plano_class = ['free'=>'badge-blue','premium'=>'badge-neon', 'anual' => 'badge-purple'];
     ?>
-    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.35rem;">Plano atual</div>
+    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.35rem;">Status do Sistema</div>
     <span class="badge-hc <?= $plano_class[$p] ?>"><?= $plano_label[$p] ?></span>
     
     <?php if ($p !== 'premium'): ?>

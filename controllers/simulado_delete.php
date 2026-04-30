@@ -21,6 +21,12 @@ try {
         exit;
     }
 
+    // BLOQUEIO PARA PLANO GRATUITO
+    if (($_SESSION['plano'] ?? 'free') === 'free') {
+        echo json_encode(['ok'=>false, 'msg'=>'No plano gratuito, os simulados não podem ser deletados para garantir o histórico de evolução.']);
+        exit;
+    }
+
     // Iniciar transação para deletar tudo relacionado
     $db->beginTransaction();
     $db->exec("SET FOREIGN_KEY_CHECKS = 0");

@@ -57,7 +57,7 @@ $flash = getFlash();
 // Verificar se deve exibir onboarding
 $db = getDB();
 $showOnboarding = false;
-if (isset($_SESSION['usuario_id'])) {
+if (isset($_SESSION['usuario_id']) && ($_SESSION['perfil'] ?? '') !== 'admin') {
     $stO = $db->prepare("SELECT onboarding_visto FROM perfis_usuario WHERE usuario_id = ?");
     $stO->execute([$_SESSION['usuario_id']]);
     $visto = $stO->fetchColumn();

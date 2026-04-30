@@ -7,6 +7,14 @@ $usuario_id = $_SESSION['usuario_id'];
 
 // Processar Seleção de Concurso - PASSO 2: Importação Real
 if (isset($_POST['finalizar_selecao'])) {
+    $limite = ($_SESSION['plano'] === 'premium') ? LIMIT_TARGETS_TURBO : (($_SESSION['plano'] === 'anual') ? LIMIT_TARGETS_MASTERMIND : LIMIT_TARGETS_ACESSO);
+    $atual  = getContagemAlvos($usuario_id);
+
+    if ($atual >= $limite) {
+        flashMsg('danger', "Você atingiu o limite de alvos do seu plano ($limite/$limite). Remova um concurso ou faça upgrade.");
+        redirect('meus_concursos.php');
+    }
+
     $biblioteca_id = (int)$_POST['biblioteca_id'];
     $cargo_id_bib  = (int)$_POST['cargo_id'];
     
@@ -84,20 +92,18 @@ if ($selecionado_id) {
     $cq = $db->prepare("SELECT * FROM biblioteca_cargos WHERE biblioteca_edital_id = ?");
     $cq->execute([$selecionado_id]);
     $cargos_disponiveis = $cq->fetchAll();
-    
-    // Se não houver cargos cadastrados, cria um "Geral" fictício ou permite prosseguir
-    if (empty($cargos_disponiveis)) {
-        // Fallback: se não tem cargo na biblioteca, cria um default aqui ou lida como antes
-        // Para seguir a nova regra, vamos forçar que tenha ao menos um cargo.
-    }
 }
 
+// Verificar limite global para exibição de alerta
+$limite_global = ($_SESSION['plano'] === 'premium') ? LIMIT_TARGETS_TURBO : (($_SESSION['plano'] === 'anual') ? LIMIT_TARGETS_MASTERMIND : LIMIT_TARGETS_ACESSO);
+$atual_global  = getContagemAlvos($usuario_id);
+$bloqueado_global = ($atual_global >= $limite_global);
 
 // Filtros
 $search = sanitize($_GET['q'] ?? '');
 $cat = sanitize($_GET['cat'] ?? '');
 
-$query = "SELECT * FROM biblioteca_editais WHERE status != 'encerrado'";
+$query = "SELECT * FROM biblioteca_editais WHERE situacao_adm = 'aprovado' AND status != 'encerrado'";
 $params = [];
 
 if ($search) {
@@ -127,6 +133,9 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <h2><i class="bi bi-bullseye text-neon" style="font-size:1.4rem; margin-right:0.5rem; filter: drop-shadow(0 0 5px var(--neon-green-glow));"></i> Escolha seu Próximo Alvo</h2>
       <p>Selecione um dos concursos abaixo para gerar sua estratégia personalizada.</p>
+      <div style="font-size:0.7rem; color:var(--text-muted); opacity:0.5;">
+          DEBUG: Plano: <?= $_SESSION['plano'] ?> | Alvos: <?= $atual_global ?>/<?= $limite_global ?> | Bloqueado: <?= $bloqueado_global ? 'SIM' : 'NÃO' ?>
+      </div>
     </div>
 
     <!-- Barra de Busca e Filtros -->
@@ -186,7 +195,6 @@ require_once __DIR__ . '/../includes/header.php';
         .cargo-radio:checked + .cargo-opt .check-ico { opacity: 1 !important; }
     </style>
     <?php elseif($selecionado_id && !isset($_GET['auto'])): ?>
-        <!-- Script para evitar loop se não houver cargos -->
         <script>window.location.href = '?selecionar=<?= $selecionado_id ?>&auto=1';</script>
     <?php elseif($selecionado_id && isset($_GET['auto'])): ?>
         <div class="card-glass text-center p-xl">
@@ -241,25 +249,30 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="text-neon fw-700" style="font-size:0.75rem;">
                         <i class="bi bi-lightning-charge-fill"></i> IA PRONTA
                     </div>
-                    <a href="?selecionar=<?= $e['id'] ?>" class="btn-hc btn-primary-hc btn-sm">Selecionar</a>
+                    <?php if ($bloqueado_global): ?>
+                        <button class="btn-hc btn-ghost btn-sm" onclick="alert('Você atingiu o limite de <?= $limite_global ?> alvos ativos. Remova um concurso para adicionar outro.')">Bloqueado</button>
+                    <?php else: ?>
+                        <a href="?selecionar=<?= $e['id'] ?>" class="btn-hc btn-primary-hc btn-sm">Selecionar</a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
         <?php endforeach; ?>
     </div>
 
-    <!-- Banner Premium Upgrade -->
-    <div class="card-glass mt-lg" style="border: 1px solid var(--accent-purple2); background: linear-gradient(90deg, rgba(168,85,247,0.05), transparent);">
+    <!-- Banner Colaboração (Crowdsourcing) -->
+    <div class="card-glass mt-lg" style="border: 1px solid var(--accent-blue); background: linear-gradient(90deg, rgba(59,130,246,0.05), transparent);">
         <div class="card-body d-flex ai-center jc-between">
             <div>
-                <h4 class="text-purple"><i class="bi bi-stars"></i> Não encontrou seu concurso?</h4>
-                <p class="text-muted" style="max-width:500px;">Seja <strong>Premium</strong> e suba qualquer edital em PDF para nossa IA processar exclusivamente para você.</p>
+                <h4 class="text-blue"><i class="bi bi-cloud-upload"></i> Não encontrou seu concurso?</h4>
+                <p class="text-muted" style="max-width:550px;">Ajude a nossa base de dados! Suba o edital que você deseja. Nossa equipe irá processar e liberar para você em até 24h.</p>
             </div>
-            <?php if ($_SESSION['plano'] === 'premium'): ?>
-                <a href="upload_edital.php" class="btn-hc btn-ai">Subir Edital PDF</a>
-            <?php else: ?>
-                <a href="meu_plano.php" class="btn-hc btn-ai">Upgrade Modo Guerra</a>
-            <?php endif; ?>
+            <div class="d-flex gap-sm">
+                <?php if ($_SESSION['plano'] === 'premium'): ?>
+                    <a href="upload_edital.php" class="btn-hc btn-primary-hc">Subir PDF Direto (Premium)</a>
+                <?php endif; ?>
+                <a href="sugerir_edital.php" class="btn-hc btn-ghost">Sugerir Novo Concurso</a>
+            </div>
         </div>
     </div>
 

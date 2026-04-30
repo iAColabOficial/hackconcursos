@@ -138,3 +138,234 @@ Array
         )
 
 )
+Disc: Português
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Considere a seguinte frase adaptada de um editorial contemporâneo: 'Os cidadãos, que buscam a ética na política, devem ser valorizados pelo sistema eleitoral'. Do ponto de vista da semântica e da pontuação, se as vírgulas que isolam a oração adjetiva forem retiradas, a alteração de sentido ocorrida é:
+            [alternativa_a] => A oração deixa de indicar uma característica de todos os cidadãos e passa a restringir o grupo apenas àqueles que buscam a ética.
+            [alternativa_b] => A frase torna-se gramaticalmente incorreta, pois orações adjetivas restritivas exigem obrigatoriamente o uso de vírgulas.
+            [alternativa_c] => O sentido permanece idêntico, visto que a vírgula em orações adjetivas possui apenas valor enfático ou estilístico.
+            [alternativa_d] => A oração passa a ter um valor explicativo generalizante, indicando que a busca pela ética é uma qualidade intrínseca a qualquer cidadão.
+            [alternativa_e] => A retirada das vírgulas transforma o sujeito da oração principal em um termo indeterminado, prejudicando a concordância verbal.
+            [gabarito] => A
+            [explicacao] => Na FGV, a distinção entre orações adjetivas explicativas (com vírgula) e restritivas (sem vírgula) é recorrente. Com vírgulas, o texto pressupõe que *todos* os cidadãos buscam a ética (explicação de um todo). Sem vírgulas, o sentido é de que *apenas alguns* cidadãos (aqueles que buscam a ética) devem ser valorizados, restringindo o universo do substantivo anterior.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Assinale a opção em que a norma culta relativa à concordância verbal e ao uso da partícula 'se' foi integralmente respeitada, mantendo a clareza e a coesão textual.
+            [alternativa_a] => Tratam-se de medidas urgentes que visam mitigar os efeitos da crise econômica no setor varejista.
+            [alternativa_b] => Devem-se buscar soluções inovadoras para que não hajam novos atrasos no cronograma das obras públicas.
+            [alternativa_c] => Alugam-se apartamentos de luxo naquela região da cidade, onde se observam altos índices de valorização.
+            [alternativa_d] => Faziam muitos anos que a população não assistia a um debate político tão acalorado e propositivo.
+            [alternativa_e] => Poderia haverem outras interpretações para o texto legal, caso os juristas fossem consultados previamente.
+            [gabarito] => C
+            [explicacao] => A alternativa C está correta: 'Alugam-se apartamentos' (VTD + SE = partícula apassivadora, o sujeito é 'apartamentos', verbo no plural) e 'se observam altos índices' (mesmo caso). Erros das demais: A) 'Tratar-se de' é VTI, o 'se' é índice de indeterminação do sujeito, verbo sempre no singular; B) 'Haver' (existir) é impessoal, não vai para o plural, logo 'haja'; D) 'Fazer' indicando tempo decorrido é impessoal, logo 'Fazia'; E) O verbo auxiliar 'poderia' deve ficar no singular acompanhando a impessoalidade do principal 'haver'.
+        )
+
+)
+Disc: Direito Constitucional
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Maria, servidora pública federal, solicitou ao órgão em que trabalha uma certidão contendo informações sobre seus períodos de licença-prêmio não gozados, para fins de averbação em sua ficha funcional. O pedido foi indeferido pela autoridade administrativa sob o argumento genérico de 'sigilo interno', sem qualquer fundamentação legal específica. Diante da negativa e da necessidade de comprovar o direito líquido e certo à obtenção de certidões para defesa de direitos e esclarecimento de situações de interesse pessoal, Maria decide impetrar um remédio constitucional. Com base na jurisprudência do Supremo Tribunal Federal e na Constituição Federal de 1988, assinale a alternativa correta.
+            [alternativa_a] => O remédio cabível é o Habeas Data, uma vez que se trata de informação relativa à pessoa da impetrante constante de registros de entidades governamentais.
+            [alternativa_b] => O Mandado de Segurança é a via adequada, pois o direito à obtenção de certidões é um direito líquido e certo, e o Habeas Data não se presta à obtenção de certidões, mas sim ao conhecimento ou retificação de dados.
+            [alternativa_c] => Deverá ser impetrado Mandado de Injunção, visto que a ausência de norma regulamentadora sobre o 'sigilo interno' inviabiliza o exercício do direito constitucional de Maria.
+            [alternativa_d] => A Ação Popular seria o meio idôneo, dado que o ato administrativo de indeferimento fere a moralidade administrativa e o patrimônio público imaterial.
+            [alternativa_e] => Maria deve ajuizar uma Reclamação Constitucional diretamente no Supremo Tribunal Federal, por descumprimento de preceito fundamental relativo à publicidade dos atos administrativos.
+            [gabarito] => B
+            [explicacao] => A FGV costuma cobrar a distinção clássica entre Habeas Data e Mandado de Segurança. Segundo o STF (Súmula 633), o Mandado de Segurança é a via adequada para a obtenção de certidões, pois o Habeas Data (Art. 5º, LXXII, CF) destina-se especificamente ao conhecimento ou retificação de informações constantes de registros ou bancos de dados, e não para compelir a administração a fornecer certidões de interesse pessoal (Art. 5º, XXXIV, 'b', CF).
+        )
+
+    [1] => Array
+        (
+            [enunciado] => O Presidente da República, ao analisar um projeto de lei aprovado pelo Congresso Nacional que dispõe sobre novas regras de licitações, decide exercer seu poder de veto. Por considerar que o Artigo 10 do projeto é manifestamente inconstitucional e que três palavras específicas contidas no Artigo 15 contrariam o interesse público, o Chefe do Executivo veta integralmente o Artigo 10 e apenas as referidas palavras do Artigo 15, mantendo o restante do dispositivo. Sobre a sistemática do veto no processo legislativo brasileiro, assinale a afirmativa correta.
+            [alternativa_a] => O veto é juridicamente perfeito, uma vez que o Presidente da República possui discricionariedade para vetar palavras isoladas por motivo de interesse público.
+            [alternativa_b] => O veto ao Artigo 10 é classificado como veto político, enquanto o veto às palavras do Artigo 15 é classificado como veto jurídico.
+            [alternativa_c] => O veto parcial é inválido quanto às palavras isoladas do Artigo 15, pois o veto deve abranger o texto integral de artigo, de parágrafo, de inciso ou de alínea.
+            [alternativa_d] => O Congresso Nacional não poderá rejeitar o veto presidencial se este for fundamentado em inconstitucionalidade, cabendo apenas ao STF tal análise.
+            [alternativa_e] => O silêncio do Presidente da República após o prazo de 15 dias úteis do recebimento do projeto de lei importa em veto tácito, obrigando o retorno do texto ao Legislativo.
+            [gabarito] => C
+            [explicacao] => Questão clássica da FGV sobre Processo Legislativo. Conforme o Art. 66, § 2º da CF/88, 'o veto parcial somente abrangerá texto integral de artigo, de parágrafo, de inciso ou de alínea'. Portanto, é proibido o veto de palavras isoladas (veto 'picadinho'). Além disso, o silêncio do Presidente importa em sanção tácita (Art. 66, § 3º), e não veto.
+        )
+
+)
+Disc: Direito Administrativo
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => João, servidor público ocupante de cargo efetivo no Município de 'Alfa', no exercício de suas funções como fiscal de posturas, ao realizar uma diligência oficial conduzindo veículo da municipalidade, colide culposamente com o automóvel de Maria, que estava devidamente estacionado. O impacto causou danos materiais de grande monta ao veículo particular. Diante da situação narrada e do entendimento consolidado pelo Supremo Tribunal Federal em sede de repercussão geral (Tema 940), assinale a afirmativa correta.
+            [alternativa_a] => Maria possui o direito de ajuizar a ação indenizatória diretamente contra João, contra o Município de Alfa, ou contra ambos em litisconsórcio passivo facultativo, em razão da responsabilidade solidária.
+            [alternativa_b] => A responsabilidade do Município de Alfa é subjetiva no caso em tela, exigindo que Maria comprove a falha no serviço (faute du service) para fazer jus à indenização.
+            [alternativa_c] => Maria deve ajuizar a ação em face do Município de Alfa, sendo João parte ilegítima para figurar no polo passivo da ação de indenização, resguardado o direito de regresso do ente público contra o servidor.
+            [alternativa_d] => O Município de Alfa responde objetivamente pelos danos, mas o direito de regresso contra João prescinde da comprovação de dolo ou culpa, bastando a prova do nexo causal e do dano.
+            [alternativa_e] => A pretensão reparatória de Maria em face do Município de Alfa prescreve em três anos, seguindo o prazo estabelecido pelo Código Civil para as ações de reparação civil contra particulares.
+            [gabarito] => C
+            [explicacao] => O STF, no Tema 940 de Repercussão Geral (RE 1.027.633), fixou a tese da 'Dupla Garantia': a vítima deve acionar o Estado (pessoa jurídica), que responde objetivamente. O agente público é parte ilegítima para ser processado diretamente pelo terceiro. O Estado, se condenado, poderá exercer regresso contra o agente, mas apenas se houver dolo ou culpa (responsabilidade subjetiva do agente).
+        )
+
+    [1] => Array
+        (
+            [enunciado] => A Secretaria de Administração do Estado 'Beta' editou um ato administrativo autorizando o uso de um espaço público por uma associação de moradores para a realização de eventos comunitários. Seis meses após a edição, em virtude de uma reestruturação urbanística que prevê a construção de uma creche no local, a Administração decide extinguir o referido ato, que não apresentava qualquer vício de legalidade. Com base na teoria dos atos administrativos e na Súmula 473 do STF, assinale a afirmativa correta.
+            [alternativa_a] => A extinção do ato configura anulação, uma vez que o interesse público superveniente retira o fundamento de validade da autorização anterior.
+            [alternativa_b] => Trata-se de hipótese de cassação, visto que a associação de moradores perdeu o direito de uso em razão de uma nova necessidade da Administração Pública.
+            [alternativa_c] => A Administração deve proceder à revogação do ato por razões de conveniência e oportunidade, o que gera efeitos retroativos (ex tunc) à data da edição do ato original.
+            [alternativa_d] => O ato deve ser extinto por revogação, que é o desfazimento de um ato administrativo legítimo por razões de mérito, operando efeitos prospectivos (ex nunc) e respeitando os direitos adquiridos.
+            [alternativa_e] => A extinção do ato é vedada pelo princípio da segurança jurídica, salvo se a Administração comprovar que a associação descumpriu as cláusulas fixadas no termo de autorização.
+            [gabarito] => D
+            [explicacao] => A revogação é o instituto pelo qual a Administração extingue um ato válido e eficaz por razões de mérito (conveniência e oportunidade). Diferente da anulação (que retroage), a revogação produz efeitos 'ex nunc' (não retroativos) e deve sempre respeitar os direitos adquiridos, conforme a Súmula 473 do STF e o Art. 53 da Lei 9.784/99.
+        )
+
+)
+Disc: Informática
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Um assistente administrativo da Secretaria de Fazenda está utilizando o Microsoft Excel 365 (versão em português) para consolidar dados de arrecadação. Na coluna A, encontram-se os nomes dos municípios (ex: 'Niterói', 'Nova Iguaçu', 'Angra dos Reis') e, na coluna B, os valores arrecadados. O assistente precisa somar os valores de todos os municípios cujo nome comece com a letra 'N'. Assinale a alternativa que apresenta a fórmula correta para realizar essa operação, considerando o intervalo de linhas de 1 a 100.
+            [alternativa_a] => =SOMA(A1:A100; "N*"; B1:B100)
+            [alternativa_b] => =SOMASE(A1:A100; "N*"; B1:B100)
+            [alternativa_c] => =SOMASE(B1:B100; "N*"; A1:A100)
+            [alternativa_d] => =PROCV("N*"; A1:B100; 2; FALSO)
+            [alternativa_e] => =CONT.SE(A1:A100; "N*") + SOMA(B1:B100)
+            [gabarito] => B
+            [explicacao] => A função SOMASE exige a sintaxe (intervalo_critério; critério; intervalo_soma). O caractere curinga '*' (asterisco) representa qualquer sequência de caracteres, logo 'N*' filtra células que iniciam com N. A alternativa A usa a função SOMA (incorreta para critérios), e a C inverte a ordem dos intervalos.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Durante uma auditoria de segurança em um órgão público, um técnico de TI percebeu que diversos servidores foram infectados por um software malicioso que não infecta outros arquivos, mas é capaz de criar cópias de si mesmo e se propagar automaticamente pelas redes de computadores, explorando vulnerabilidades de sistemas operacionais sem a necessidade de qualquer interação dos usuários. De acordo com a Cartilha de Segurança para Internet do CERT.br, esse tipo de malware é classificado como:
+            [alternativa_a] => Cavalo de Troia (Trojan).
+            [alternativa_b] => Spyware.
+            [alternativa_c] => Worm (Verme).
+            [alternativa_d] => Ransomware.
+            [alternativa_e] => Rootkit.
+            [gabarito] => C
+            [explicacao] => O Worm diferencia-se do vírus por não precisar de um arquivo hospedeiro e do Trojan por não precisar de interação do usuário. Sua característica definidora na FGV é a autorreplicação e propagação automática via rede explorando vulnerabilidades.
+        )
+
+)
+Disc: Raciocínio Lógico
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Em um seminário sobre gestão pública, um palestrante afirmou: 'Se o relatório de gestão é aprovado e a dotação orçamentária é liberada, então o projeto social é implementado'. Do ponto de vista da lógica sentencial, uma afirmação que é logicamente equivalente à afirmação do palestrante é:
+            [alternativa_a] => Se o projeto social não foi implementado, então o relatório de gestão não foi aprovado e a dotação orçamentária não foi liberada.
+            [alternativa_b] => Se o projeto social foi implementado, então o relatório de gestão foi aprovado e a dotação orçamentária foi liberada.
+            [alternativa_c] => O relatório de gestão não é aprovado ou a dotação orçamentária não é liberada ou o projeto social é implementado.
+            [alternativa_d] => Se o relatório de gestão não for aprovado ou a dotação orçamentária não for liberada, então o projeto social não será implementado.
+            [alternativa_e] => O relatório de gestão é aprovado e a dotação orçamentária é liberada, mas o projeto social não é implementado.
+            [gabarito] => C
+            [explicacao] => A questão exige equivalência da condicional (P ∧ Q) → R. A FGV frequentemente cobra a equivalência 'Se P então Q' ⇔ '~P ou Q'. Aplicando ao caso: ~(P ∧ Q) ∨ R. Pela Lei de De Morgan, ~(P ∧ Q) é (~P ∨ ~Q). Logo, a equivalência é (~P ∨ ~Q ∨ R), que traduzido é: 'O relatório não é aprovado OU a dotação não é liberada OU o projeto é implementado'. A alternativa E é a negação, não a equivalência.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Considere a seguinte proposição feita por um fiscal de tributos durante uma auditoria: 'Todo processo auditado que apresenta inconsistência é retido para análise e nenhum contribuinte fica sem resposta'. A negação lógica dessa proposição é:
+            [alternativa_a] => Nenhum processo auditado que apresenta inconsistência é retido para análise e todos os contribuintes ficam sem resposta.
+            [alternativa_b] => Pelo menos um processo auditado que apresenta inconsistência não é retido para análise ou algum contribuinte fica sem resposta.
+            [alternativa_c] => Algum processo auditado que apresenta inconsistência não é retido para análise e pelo menos um contribuinte fica sem resposta.
+            [alternativa_d] => Se um processo auditado apresenta inconsistência e não é retido, então o contribuinte fica sem resposta.
+            [alternativa_e] => Pelo menos um processo auditado que apresenta inconsistência não é retido para análise ou algum contribuinte não fica sem resposta.
+            [gabarito] => B
+            [explicacao] => A FGV adora a negação de proposições compostas com quantificadores. Temos (Todo A é B) ∧ (Nenhum C é D). A negação de (P ∧ Q) é (~P ∨ ~Q). A negação de 'Todo A é B' é 'Algum A não é B'. A negação de 'Nenhum C é D' (Todo C é não D) é 'Algum C é D'. Portanto: 'Algum processo... não é retido' OU 'Algum contribuinte fica com resposta (não fica sem resposta)'. Nota: 'Algum contribuinte fica sem resposta' é o oposto de 'Nenhum fica sem', pois 'Nenhum' significa que 0 pessoas ficam sem, e a negação é que ao menos 1 (algum) fique.
+        )
+
+)
+Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Disc: Direito Constitucional
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => No que concerne ao controle de constitucionalidade e à disciplina dos Estados-membros na Federação Brasileira, assinale a alternativa que está em estrita conformidade com a jurisprudência consolidada do Supremo Tribunal Federal e as normas constitucionais vigentes.
+            [alternativa_a] => É inadmissível a propositura de Ação Direta de Inconstitucionalidade (ADI) perante o Tribunal de Justiça local tendo como parâmetro de controle normas da Constituição Federal, ainda que se trate de normas de reprodução obrigatória pelos Estados.
+            [alternativa_b] => O Município possui legitimidade ativa para propor Arguição de Descumprimento de Preceito Fundamental (ADPF) perante o Supremo Tribunal Federal, desde que demonstre a existência de controvérsia judicial relevante sobre a aplicação do preceito federal fundamental.
+            [alternativa_c] => No caso de normas de reprodução obrigatória da Constituição Federal pela Constituição Estadual, a decisão proferida pelo Tribunal de Justiça em sede de controle concentrado é passível de recurso extraordinário ao Supremo Tribunal Federal.
+            [alternativa_d] => A competência para processar e julgar Ação Direta de Inconstitucionalidade contra lei municipal que afronte a Constituição Federal é do Tribunal de Justiça do respectivo Estado, por simetria ao modelo federal.
+            [alternativa_e] => O Governador de Estado e a Mesa da Assembleia Legislativa são considerados legitimados universais para a propositura de ADI e ADC, prescindindo da demonstração de pertinência temática, independentemente do conteúdo do ato impugnado.
+            [gabarito] => C
+            [explicacao] => A alternativa C reflete a jurisprudência do STF (Tema 145 de Repercussão Geral). Quando o TJ estadual julga uma lei estadual ou municipal em face de norma da Constituição Estadual que reproduz obrigatoriamente norma da CF/88, admite-se Recurso Extraordinário para que o STF dê a última palavra sobre a interpretação dessa norma. A) Errada: O TJ pode usar normas de reprodução obrigatória como parâmetro. B) Errada: Municípios não estão no rol do art. 103 da CF (legitimados para ADPF). D) Errada: Não cabe ADI de lei municipal contra a CF (cabe ADPF). E) Errada: Governadores e Mesas de Assembleias são legitimados especiais e devem demonstrar pertinência temática.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => A respeito dos remédios constitucionais e da disciplina legal do Mandado de Injunção (Lei nº 13.300/2016), assinale a alternativa correta considerando o entendimento dos Tribunais Superiores.
+            [alternativa_a] => No mandado de injunção coletivo, a sentença fará coisa julgada limitadamente às pessoas integrantes da categoria substituída pelo impetrante, não admitindo, em qualquer hipótese, a extensão de seus efeitos erga omnes.
+            [alternativa_b] => O mandado de injunção coletivo não induz litispendência em relação aos mandados de injunção individuais, mas a decisão de mérito no processo coletivo só beneficiará o impetrante do processo individual se este desistir de sua ação no prazo de 30 dias a contar da ciência da impetração coletiva.
+            [alternativa_c] => Reconhecido o estado de mora legislativa, o juiz ou tribunal determinará prazo razoável para que o impetrado promova a edição da norma regulamentadora, sendo vedado ao Judiciário estabelecer, desde logo, as condições em que se dará o exercício do direito, sob pena de violação à separação de poderes.
+            [alternativa_d] => A norma regulamentadora superveniente produzirá efeitos ex nunc em relação aos beneficiários de decisão transitada em julgado no mandado de injunção, salvo se a nova norma for mais favorável, hipótese em que terá efeitos retroativos.
+            [alternativa_e] => O mandado de injunção é cabível sempre que a falta de norma regulamentadora, de qualquer natureza, torne inviável o exercício de direitos e liberdades constitucionais, independentemente de tais direitos estarem ligados à nacionalidade, soberania ou cidadania.
+            [gabarito] => B
+            [explicacao] => A alternativa B reproduz o teor do art. 13 da Lei nº 13.300/2016, que disciplina o Mandado de Injunção. A regra de não indução de litispendência e a necessidade de desistência da ação individual para aproveitar os efeitos da coletiva é idêntica à lógica do Mandado de Segurança Coletivo e do CDC. A) Errada: O art. 9º permite eficácia ultra partes ou erga omnes se inerente ao bem jurídico. C) Errada: A Lei 13.300 adotou a teoria concretista (art. 8º, II), permitindo que o juiz estabeleça as condições de exercício do direito se a norma não for editada no prazo. D) Errada: A norma superveniente produz efeitos ex tunc (retroativos) em relação aos beneficiários da decisão judicial, salvo se a norma for menos favorável (art. 11). E) Errada: O texto constitucional (art. 5º, LXXI) restringe o MI a direitos ligados à nacionalidade, soberania e cidadania.
+        )
+
+)
+Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Disc: Informática
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Considere a seguinte planilha editada no Microsoft Excel 2016, em sua configuração padrão, contendo os seguintes valores: A1=100, B1=10; A2=200, B2=20; A3=300, B3=30. Na célula C1, o usuário inseriu a seguinte fórmula: =SE(PROCV(250;A1:B3;2;1)>15;SOMA(A1:A2);MÉDIA(A1:B3)). Assinale a alternativa que apresenta o valor correto exibido na célula C1 após a execução da fórmula.
+            [alternativa_a] => 110
+            [alternativa_b] => 150
+            [alternativa_c] => 250
+            [alternativa_d] => 300
+            [alternativa_e] => 660
+            [gabarito] => D
+            [explicacao] => O PROCV com o quarto argumento '1' (VERDADEIRO) realiza uma busca aproximada. Para o valor 250 no intervalo A1:B3, ele localiza o maior valor menor ou igual a 250 na primeira coluna, que é 200 (A2), e retorna o valor correspondente na segunda coluna, que é 20. Como 20 > 15 é VERDADEIRO, a função SE executa o primeiro argumento: SOMA(A1:A2), resultando em 100+200 = 300.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => No contexto da Segurança da Informação, um analista precisa garantir a integridade e a autenticidade de um documento digital enviado por e-mail, sem necessariamente garantir o sigilo do conteúdo. Para atingir esse objetivo por meio de uma Assinatura Digital, o processo técnico correto consiste em:
+            [alternativa_a] => O remetente criptografar o documento utilizando a chave pública do destinatário.
+            [alternativa_b] => O remetente gerar um hash do documento e criptografar esse hash com sua própria chave privada.
+            [alternativa_c] => O destinatário descriptografar o documento utilizando sua chave privada para verificar a origem.
+            [alternativa_d] => O remetente utilizar a chave pública do destinatário para gerar um código de autenticação de mensagem (MAC).
+            [alternativa_e] => O destinatário gerar um novo hash do documento e criptografá-lo com a chave pública do remetente para comparação.
+            [gabarito] => B
+            [explicacao] => A assinatura digital baseia-se no uso da chave PRIVADA do remetente sobre o HASH do documento. Isso garante a Autenticidade (só o dono da chave privada poderia ter assinado) e a Integridade (qualquer alteração no documento invalidaria o hash). A chave pública do remetente é usada pelo destinatário apenas para decifrar o hash e validar o processo.
+        )
+
+)
+Disc: Raciocínio Lógico
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Considere a seguinte afirmação feita por um perito criminal em um relatório: 'Se o vestígio biológico foi preservado e a cadeia de custódia não foi interrompida, então a contraperícia confirmará o laudo inicial'. Do ponto de vista da lógica proposicional, uma negação lógica para a afirmação do perito é:
+            [alternativa_a] => Se o vestígio biológico não foi preservado ou a cadeia de custódia foi interrompida, então a contraperícia não confirmará o laudo inicial.
+            [alternativa_b] => O vestígio biológico foi preservado, a cadeia de custódia não foi interrompida e a contraperícia não confirmará o laudo inicial.
+            [alternativa_c] => O vestígio biológico não foi preservado ou a cadeia de custódia foi interrompida ou a contraperícia não confirmará o laudo inicial.
+            [alternativa_d] => Se a contraperícia não confirmar o laudo inicial, então o vestígio biológico não foi preservado ou a cadeia de custódia foi interrompida.
+            [alternativa_e] => O vestígio biológico não foi preservado e a cadeia de custódia foi interrompida e a contraperícia não confirmará o laudo inicial.
+            [gabarito] => B
+            [explicacao] => A VUNESP cobra frequentemente a negação de condicionais. A estrutura da frase é (P ∧ Q) → R. A negação de uma condicional (A → B) é feita mantendo-se a primeira parte (antecedente) E negando-se a segunda (consequente), ou seja: A ∧ ~B. Portanto, mantemos 'O vestígio biológico foi preservado E a cadeia de custódia não foi interrompida' e trocamos o 'então' por 'E', negando a última parte: 'a contraperícia NÃO confirmará o laudo inicial'.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Em um determinado departamento policial, sabe-se que as seguintes premissas são verdadeiras:
+I. Se o agente é experiente, então ele domina o sistema de inteligência.
+II. Se o agente domina o sistema de inteligência, então ele não comete erros de protocolo.
+III. O agente cometeu erros de protocolo ou o relatório foi entregue no prazo.
+IV. O relatório não foi entregue no prazo.
+
+Com base exclusivamente nessas premissas, é correto concluir que o agente:
+            [alternativa_a] => É experiente e domina o sistema de inteligência.
+            [alternativa_b] => Não domina o sistema de inteligência, mas é experiente.
+            [alternativa_c] => Não é experiente e não domina o sistema de inteligência.
+            [alternativa_d] => Domina o sistema de inteligência e o relatório foi entregue no prazo.
+            [alternativa_e] => Cometeu erros de protocolo, mas domina o sistema de inteligência.
+            [gabarito] => C
+            [explicacao] => Questão clássica de argumentação lógica da VUNESP (Modus Tollens encadeado). Partindo da premissa IV (Relatório não entregue), analisamos a III: como é uma disjunção (OU) e uma parte é falsa, a outra deve ser verdadeira, logo 'O agente cometeu erros de protocolo'. Usando a premissa II: se ele não comete erros quando domina o sistema, e ele cometeu erros, então ele NÃO domina o sistema (Modus Tollens). Usando a premissa I: se ele não domina o sistema, então ele NÃO é experiente (Modus Tollens). Logo, ele não é experiente e não domina o sistema.
+        )
+
+)
+Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.

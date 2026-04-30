@@ -26,6 +26,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
     try {
         $db = getDB();
         
+        // Verificação de limite para plano gratuito
+        if (($_SESSION['plano'] ?? 'free') === 'free') {
+            $countQ = $db->prepare("SELECT COUNT(*) FROM simulados WHERE usuario_id = ?");
+            $countQ->execute([$uid]);
+            $count = $countQ->fetchColumn();
+            if ($count >= 5) {
+                echo json_encode(['ok' => false, 'msg' => 'Você atingiu o limite de 5 simulados do plano gratuito. Faça upgrade para ter acesso ilimitado.']);
+                exit;
+            }
+        }
+
         $banca       = sanitize($body['banca'] ?? 'FGV');
         $dificuldade = sanitize($body['dificuldade'] ?? 'media');
 

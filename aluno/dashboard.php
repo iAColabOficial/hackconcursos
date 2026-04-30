@@ -9,7 +9,7 @@ $dash = new DashboardData($db, $usuario_id);
 $m = $dash->getMetrics();
 $radar = $dash->getRadar();
 
-$pageTitle = "Dashboard de Guerra";
+$pageTitle = "Central de Evolução";
 include __DIR__ . '/../includes/header_aluno.php';
 ?>
 
@@ -22,24 +22,24 @@ include __DIR__ . '/../includes/header_aluno.php';
             <div class="card-glass p-3 d-flex jc-between ai-center">
                 <div class="d-flex gap-lg">
                     <div class="hud-item">
-                        <span class="form-label mb-0" style="font-size: 0.65rem;">Nível</span>
+                        <span class="form-label mb-0" style="font-size: 0.65rem;">Domínio</span>
                         <div class="fw-800 text-neon"><?= $m['nivel_label'] ?></div>
                     </div>
                     <div class="hud-item">
-                        <span class="form-label mb-0" style="font-size: 0.65rem;">Streak</span>
+                        <span class="form-label mb-0" style="font-size: 0.65rem;">Sequência</span>
                         <div class="fw-800 text-warning">🔥 <?= $m['streak'] ?> Dias</div>
                     </div>
                     <div class="hud-item">
                         <span class="form-label mb-0" style="font-size: 0.65rem;">Energia</span>
-                        <div class="fw-800 text-blue">⚡ <?= $m['tokens'] ?> Tokens</div>
+                        <div class="fw-800 text-blue">⚡ <?= $m['tokens'] ?> Cargas</div>
                     </div>
                     <div class="hud-item">
-                        <span class="form-label mb-0" style="font-size: 0.65rem;">Risco</span>
-                        <div class="fw-800" style="color: <?= $m['risco']['color'] ?>"><?= $m['risco']['label'] ?></div>
+                        <span class="form-label mb-0" style="font-size: 0.65rem;">Eficiência</span>
+                        <div class="fw-800" style="color: <?= $m['risco']['color'] ?>"><?= 100 - (int)$m['cobertura'] ?>%</div>
                     </div>
                 </div>
                 <button class="btn-hc btn-ai btn-sm" id="btn-activate-ia" onclick="location.href='insights.php'">
-                    ✨ ATIVAR IA (SKILL)
+                    ✨ OTIMIZAR SISTEMA
                 </button>
             </div>
         </header>
@@ -80,32 +80,32 @@ include __DIR__ . '/../includes/header_aluno.php';
                     </div>
                 </div>
 
-                <!-- LINHA 2: MISSÃO ATUAL -->
+                <!-- LINHA 2: FOCO DO DIA -->
                 <section class="mission-center mb-lg" id="current-mission">
                     <?php if ($m['missao']): ?>
                         <div class="card-glass border-neon" style="border-width: 2px;">
                             <div class="card-body d-flex jc-between ai-center">
                                 <div class="flex-1">
-                                    <div class="badge-hc badge-neon mb-xs">MISSÃO ATIVA</div>
+                                    <div class="badge-hc badge-neon mb-xs">FOCO DO DIA</div>
                                     <h2 class="fw-800 mb-xs"><?= $m['missao']['titulo'] ?></h2>
                                     <p class="text-secondary mb-md">
                                         <i class="fas fa-info-circle"></i> 
-                                        Motivo: <strong>Alta incidência</strong> e sua última taxa foi de <strong>55%</strong>.
+                                        Análise: <strong>Tópico Prioritário</strong>. Seu domínio atual é de <strong>55%</strong>.
                                     </p>
                                     <div class="d-flex gap-lg">
                                         <div class="hud-item">
-                                            <span class="form-label mb-0">Meta</span>
-                                            <div class="fw-700 text-blue">85% Acerto</div>
+                                            <span class="form-label mb-0">Meta de Acerto</span>
+                                            <div class="fw-700 text-blue">85%</div>
                                         </div>
                                         <div class="hud-item">
-                                            <span class="form-label mb-0">Recompensa</span>
+                                            <span class="form-label mb-0">Evolução</span>
                                             <div class="fw-700 text-warning">+150 XP</div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="text-right">
                                     <button class="btn-hc btn-neon btn-xl" onclick="location.href='simulados.php?missao=<?= $m['missao']['id'] ?>'">
-                                        INICIAR MISSÃO <i class="fas fa-rocket ml-sm"></i>
+                                        INICIAR SPRINT <i class="fas fa-bolt ml-sm"></i>
                                     </button>
                                 </div>
                             </div>
@@ -119,14 +119,14 @@ include __DIR__ . '/../includes/header_aluno.php';
                     <?php endif; ?>
                 </section>
 
-                <!-- LINHA 3: RADAR DE PROBLEMAS -->
+                <!-- LINHA 3: MAPA DE GARGALOS -->
                 <section class="problem-radar">
-                    <h3 class="fw-800 mb-md"><i class="fas fa-satellite-dish text-danger"></i> Radar de Problemas</h3>
+                    <h3 class="fw-800 mb-md"><i class="fas fa-satellite-dish text-danger"></i> Mapa de Gargalos</h3>
                     <div class="d-grid gap-md">
                         <?php foreach ($radar as $p): ?>
                             <div class="card-glass p-3 d-flex jc-between ai-center border-glass" style="background: rgba(239,68,68,0.03);">
                                 <div class="d-flex ai-center gap-md">
-                                    <div class="text-danger" style="font-size: 1.5rem;"><i class="fas fa-exclamation-triangle"></i></div>
+                                    <div class="text-danger" style="font-size: 1.5rem;"><i class="fas fa-microchip"></i></div>
                                     <div>
                                         <div class="fw-700"><?= $p['msg'] ?></div>
                                         <div class="text-muted" style="font-size: 0.8rem;"><?= $p['detalhe'] ?></div>
@@ -134,7 +134,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                                 </div>
                                 <div class="d-flex gap-sm">
                                     <button class="btn-hc btn-ghost btn-sm" onclick="location.href='material.php'">Manual (Grátis)</button>
-                                    <button class="btn-hc btn-ai btn-sm" onclick="location.href='scanner_erros.php'">✨ Resolver com IA</button>
+                                    <button class="btn-hc btn-ai btn-sm" onclick="location.href='scanner_erros.php'">✨ Otimizar com IA</button>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -172,12 +172,12 @@ include __DIR__ . '/../includes/header_aluno.php';
                 </div>
 
                 <div class="card-glass p-4 border-neon" id="ia-scanner-card" style="background: linear-gradient(180deg, rgba(168,85,247,0.05), transparent);">
-                    <h5 class="fw-800 mb-xs text-purple">✨ Scanner IA</h5>
+                    <h5 class="fw-800 mb-xs text-purple">✨ Scanner de Padrões</h5>
                     <p class="text-secondary mb-md" style="font-size: 0.85rem;">
-                        "Você está repetindo o mesmo erro em crase. A IA pode identificar o padrão mental."
+                        "Identificamos um padrão de erro recorrente. A IA pode aplicar um 'patch' no seu aprendizado."
                     </p>
                     <button class="btn-hc btn-ai w-100" onclick="location.href='scanner_erros.php'">
-                        USAR SCANNER (1⚡)
+                        ATIVAR SCANNER (5⚡)
                     </button>
                 </div>
             </div>

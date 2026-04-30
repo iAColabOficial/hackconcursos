@@ -30,7 +30,7 @@ try {
     }
 
     flashMsg('success', '🚀 Plano estratégico gerado com ' . $resultado['total_missoes'] . ' missões personalizadas!');
-    redirect('../aluno/dashboard.php');
+    redirect('../aluno/plano_estudos.php');
 
 } catch (Exception $e) {
     flashMsg('error', 'Erro ao gerar motor estratégico: ' . $e->getMessage());

@@ -35,8 +35,12 @@ if ($cargoAtivo) {
     $disciplinas = $discQ->fetchAll();
 }
 
+$is_free = ($_SESSION['plano'] ?? 'free') === 'free';
+$totalRealizados = count($historicoSimulados);
+$limitReached = $is_free && $totalRealizados >= 5;
+
 $page_title = 'Simulados';
-require_once __DIR__ . '/../includes/header.php';
+include __DIR__ . '/../includes/header_aluno.php';
 ?>
 
 <div class="dashboard-layout" style="position:relative;z-index:1;">
@@ -50,9 +54,18 @@ require_once __DIR__ . '/../includes/header.php';
         <p>Pratique com questões reais e geradas por inteligência tática.</p>
       </div>
       <?php if ($cargoAtivo): ?>
-      <button class="btn-hc btn-primary-hc btn-lg" onclick="openModal('modal-novo-simulado')">
-        Novo Simulado
-      </button>
+        <?php if ($limitReached): ?>
+          <div class="d-flex flex-column ai-end">
+            <button class="btn-hc btn-ghost btn-lg" style="opacity:0.6; cursor:not-allowed;" title="Limite de 5 simulados atingido no plano gratuito.">
+              Cota Esgotada (5/5)
+            </button>
+            <a href="meu_plano.php" class="text-neon small mt-xs fw-700" style="text-decoration:none;"><i class="bi bi-rocket-takeoff"></i> Fazer Upgrade para Ilimitado</a>
+          </div>
+        <?php else: ?>
+          <button class="btn-hc btn-primary-hc btn-lg" onclick="openModal('modal-novo-simulado')">
+            Novo Simulado <?= $is_free ? "($totalRealizados/5)" : "" ?>
+          </button>
+        <?php endif; ?>
       <?php endif; ?>
     </div>
 
@@ -132,12 +145,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <td>
                   <div class="d-flex ai-center gap-sm">
                     <a href="simulado_view.php?id=<?= $sim['id'] ?>" class="btn-hc btn-ghost btn-sm">Ver Detalhes</a>
+                    <?php if (!$is_free): ?>
                     <button class="btn-hc btn-sm" 
                             style="background:rgba(239,68,68,0.1); color:var(--danger); border:1px solid rgba(239,68,68,0.2);"
                             onclick="excluirSimulado(<?= $sim['id'] ?>)"
                             title="Excluir Simulado">
                       <i class="bi bi-trash"></i>
                     </button>
+                    <?php endif; ?>
                   </div>
                 </td>
               </tr>
