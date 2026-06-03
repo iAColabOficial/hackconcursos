@@ -368,4 +368,154 @@ Com base exclusivamente nessas premissas, é correto concluir que o agente:
         )
 
 )
-Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.
+Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Disc: Direito Penal
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Mário iniciou a prática do crime de extorsão mediante sequestro (crime permanente) em janeiro de 2023. Em fevereiro de 2023, entrou em vigor lei nova que majorou a pena desse delito. A vítima foi libertada apenas em março de 2023, após o pagamento do resgate. Diante desse cenário e de acordo com a jurisprudência sumulada do Supremo Tribunal Federal, a lei nova:
+            [alternativa_a] => Não se aplica ao caso, em respeito ao princípio da irretroatividade da lei penal mais gravosa.
+            [alternativa_b] => Aplica-se ao caso, pois a lei penal mais grave aplica-se ao crime continuado ou ao crime permanente, se a sua vigência é anterior à cessação da continuidade ou da permanência.
+            [alternativa_c] => Aplica-se parcialmente, devendo o juiz realizar a combinação de leis (lex tertia) para dosar a pena de forma proporcional.
+            [alternativa_d] => Não se aplica, salvo se demonstrado que o agente tinha ciência inequívoca da nova capitulação legal antes da libertação da vítima.
+            [alternativa_e] => Aplica-se apenas se for mais benéfica ao réu, uma vez que o direito penal brasileiro adota a teoria da atividade de forma absoluta.
+            [gabarito] => B
+            [explicacao] => A questão adota o entendimento consolidado na Súmula 711 do STF: 'A lei penal mais grave aplica-se ao crime continuado ou ao crime permanente, se a sua vigência é anterior à cessação da continuidade ou da permanência'. Como a permanência do crime de extorsão mediante sequestro se prolongou até março de 2023, a lei nova (mais grave), que entrou em vigor em fevereiro de 2023, é perfeitamente aplicável.
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Caio, sem emprego de violência ou grave ameaça à pessoa, subtraiu para si um notebook de propriedade de seu colega de trabalho. Arrependido, Caio restituiu integralmente o bem à vítima, em perfeito estado de conservação, antes do recebimento da denúncia pelo juiz competente. Nos termos do Código Penal brasileiro, a conduta de Caio configura:
+            [alternativa_a] => causa de exclusão da ilicitude, restando afastada a tipicidade material da conduta.
+            [alternativa_b] => causa de exclusão da culpabilidade, pela inexigibilidade de conduta diversa superveniente.
+            [alternativa_c] => causa obrigatória de redução de pena, de um a dois terços.
+            [alternativa_d] => causa de extinção da punibilidade, pelo perdão judicial tácito aceito pela vítima.
+            [alternativa_e] => circunstância atenuante genérica, a ser considerada na segunda fase da dosimetria da pena.
+            [gabarito] => C
+            [explicacao] => Trata-se do instituto do arrependimento posterior, previsto no art. 16 do Código Penal. Seus requisitos são: 1) crime cometido sem violência ou grave ameaça à pessoa; 2) reparação do dano ou restituição da coisa; 3) ato voluntário do agente; 4) realizado até o recebimento da denúncia ou da queixa. A consequência jurídica é a redução obrigatória da pena de um a dois terços (causa de diminuição de pena, aplicada na terceira fase da dosimetria).
+        )
+
+    [2] => Array
+        (
+            [enunciado] => Um fiscal de posturas municipais, durante a fiscalização de um estabelecimento comercial, constata uma irregularidade sanável. Visando obter vantagem indevida, o funcionário público afirma ao comerciante: 'Se você não me pagar R$ 2.000,00 agora, vou interditar seu estabelecimento imediatamente e aplicar a multa máxima'. Intimidado, o comerciante realiza o pagamento. Diante do caso concreto, a conduta do fiscal configura, em tese, o crime de:
+            [alternativa_a] => Corrupção passiva, pois houve a solicitação de vantagem indevida em razão da função pública.
+            [alternativa_b] => Concussão, pois o funcionário público exigiu a vantagem indevida, utilizando-se do temor reverencial e da ameaça de ato de autoridade.
+            [alternativa_c] => Extorsão comum, uma vez que houve emprego de grave ameaça para a obtenção de vantagem econômica.
+            [alternativa_d] => Prevaricação, pois o funcionário público retardou ato de ofício para satisfazer interesse pessoal.
+            [alternativa_e] => Excesso de exação, por se tratar de cobrança de tributo ou tarifa social cumulada com desvio de finalidade.
+            [gabarito] => B
+            [explicacao] => O núcleo do tipo penal da Concussão (art. 316 do CP) é 'exigir'. A conduta do fiscal de impor um mal ('vou interditar... e aplicar a multa') para obter a vantagem indevida caracteriza a exigência (concussão), diferenciando-se da corrupção passiva (art. 317 do CP), cujo núcleo principal é 'solicitar' ou 'receber', sem o elemento da imposição/coação.
+        )
+
+    [3] => Array
+        (
+            [enunciado] => Mariana, fingindo ser funcionária de uma empresa de telefonia, comparece à residência de uma idosa para realizar uma suposta 'manutenção preventiva' no aparelho telefônico. Enquanto a idosa vai até a cozinha buscar um copo de água solicitado por Mariana, esta aproveita a distração da vítima, subtrai uma joia que estava sobre a mesa da sala e foge do local. Nesse cenário, Mariana cometeu o crime de:
+            [alternativa_a] => Estelionato, pois utilizou ardil e meio fraudulento para induzir a vítima em erro e obter a vantagem ilícita.
+            [alternativa_b] => Furto qualificado pelo abuso de confiança, tendo em vista a relação de hospitalidade momentânea estabelecida.
+            [alternativa_c] => Furto qualificado mediante fraude, pois a fraude foi utilizada como meio para burlar a vigilância da vítima e facilitar a subtração da coisa.
+            [alternativa_d] => Apropriação indébita, uma vez que Mariana obteve a posse legítima do imóvel antes de se assenhorear do bem móvel.
+            [alternativa_e] => Roubo impróprio, pois a fraude empregada equivale à redução da capacidade de resistência da vítima.
+            [gabarito] => C
+            [explicacao] => A distinção clássica entre o furto mediante fraude (art. 155, § 4º, II, do CP) e o estelionato (art. 171 do CP) reside no papel da fraude. No furto mediante fraude, o engano é usado para burlar a vigilância da vítima, permitindo que o agente subtraia a coisa sem o seu consentimento. No estelionato, a fraude faz com que a própria vítima, voluntariamente, entregue o bem ao agente. Como Mariana usou o disfarce para distrair a idosa e subtrair a joia, configura-se o furto qualificado mediante fraude.
+        )
+
+)
+Disc: Informática
+Array
+(
+    [0] => Array
+        (
+            [enunciado] => Considere que um assistente administrativo está utilizando o Microsoft Excel 2019 em português para consolidar dados de um relatório de desempenho. Na planilha ativa, constam os seguintes dados:
+
+- Célula A1: 10; Célula B1: "Aprovado"
+- Célula A2: 15; Célula B2: "Reprovado"
+- Célula A3: 20; Célula B3: "Aprovado"
+- Célula A4: 25; Célula B4: "Pendente"
+
+O assistente insere na célula C1 a seguinte fórmula:
+`=SOMASE(B1:B4; "Aprovado"; A1:A4) + CONT.SE(A1:A4; ">15")`
+
+O resultado correto exibido na célula C1 após pressionar Enter será:
+            [alternativa_a] => 30
+            [alternativa_b] => 32
+            [alternativa_c] => 33
+            [alternativa_d] => 35
+            [alternativa_e] => 47
+            [gabarito] => B
+            [explicacao] => O SOMASE soma os valores de A1:A4 onde B1:B4 é 'Aprovado' (A1 + A3 = 10 + 20 = 30). O CONT.SE conta os valores em A1:A4 estritamente maiores que 15 (A3 e A4, totalizando 2). A soma final é 30 + 2 = 32. O valor 15 (A2) não entra no CONT.SE pois o operador é de maioridade estrita (>).
+        )
+
+    [1] => Array
+        (
+            [enunciado] => Uma equipe de TI de uma autarquia pública precisa definir a política de backup dos servidores de arquivos. O principal requisito da diretoria é que o tempo gasto diariamente para a execução do backup seja o menor possível, mesmo que isso signifique um processo de restauração (restore) mais lento e complexo em caso de desastre, exigindo a leitura de múltiplas mídias. Diante desse cenário, o tipo de backup ideal a ser adotado diariamente é o:
+            [alternativa_a] => Backup Completo (Full).
+            [alternativa_b] => Backup Diferencial.
+            [alternativa_c] => Backup Incremental.
+            [alternativa_d] => Backup de Cópia.
+            [alternativa_e] => Backup Diário.
+            [gabarito] => C
+            [explicacao] => O backup Incremental copia apenas os arquivos criados ou alterados desde o último backup (seja ele completo ou incremental), sendo o mais rápido para executar. Contudo, sua restauração é a mais lenta, pois exige o último backup completo e todos os incrementais subsequentes.
+        )
+
+    [2] => Array
+        (
+            [enunciado] => Um administrador de sistemas Linux precisa localizar a ocorrência exata do termo "erro_critico" dentro de todos os arquivos de log que possuem a extensão ".log" localizados no diretório `/var/log`. O comando correto que realiza essa busca diretamente no conteúdo dos arquivos é:
+            [alternativa_a] => find /var/log/*.log -name "erro_critico"
+            [alternativa_b] => grep "erro_critico" /var/log/*.log
+            [alternativa_c] => cat /var/log/*.log | locate "erro_critico"
+            [alternativa_d] => search "erro_critico" /var/log/*.log
+            [alternativa_e] => ls /var/log/*.log | grep "erro_critico"
+            [gabarito] => B
+            [explicacao] => O comando 'grep' é utilizado para buscar padrões de texto dentro de arquivos. A alternativa E é uma pegadinha clássica da FGV: ela filtra os nomes dos arquivos gerados pelo 'ls', e não o conteúdo interno deles.
+        )
+
+    [3] => Array
+        (
+            [enunciado] => Uma agência reguladora decidiu migrar seu sistema de gestão de processos para a nuvem. A equipe técnica optou por um modelo de serviço no qual o provedor de nuvem é responsável por gerenciar toda a infraestrutura física, rede, servidores, sistemas operacionais e ferramentas de desenvolvimento (middleware). A agência, por sua vez, fica responsável apenas por implantar e configurar suas próprias aplicações e dados de negócio. Esse modelo de serviço de computação em nuvem é classificado como:
+            [alternativa_a] => IaaS (Infrastructure as a Service).
+            [alternativa_b] => SaaS (Software as a Service).
+            [alternativa_c] => PaaS (Platform as a Service).
+            [alternativa_d] => DaaS (Database as a Service).
+            [alternativa_e] => BaaS (Backup as a Service).
+            [gabarito] => C
+            [explicacao] => No modelo PaaS (Plataforma como Serviço), o cliente gerencia apenas as aplicações e os dados. O sistema operacional, servidores, armazenamento e rede são de responsabilidade do provedor, oferecendo uma plataforma pronta para desenvolvimento/implantação.
+        )
+
+    [4] => Array
+        (
+            [enunciado] => Paulo configurou sua conta de e-mail institucional em seu computador de trabalho e também em seu smartphone. Ele percebeu que, ao ler ou apagar uma mensagem em seu smartphone, o status da mensagem (lida/apagada) é atualizado quase instantaneamente quando ele acessa o e-mail pelo computador. Para que ocorra essa sincronização bidirecional de pastas e status de mensagens diretamente no servidor, o protocolo de recebimento de e-mails configurado deve ser o:
+            [alternativa_a] => POP3
+            [alternativa_b] => SMTP
+            [alternativa_c] => IMAP
+            [alternativa_d] => HTTP
+            [alternativa_e] => SNMP
+            [gabarito] => C
+            [explicacao] => O protocolo IMAP (Internet Message Access Protocol) mantém as mensagens no servidor e sincroniza as ações do usuário (como ler, mover ou apagar) entre múltiplos dispositivos. O POP3, por padrão, baixa as mensagens para o dispositivo local e não realiza essa sincronização.
+        )
+
+    [5] => Array
+        (
+            [enunciado] => Um servidor público recebeu um e-mail com a identidade visual forjada do departamento de TI do órgão, solicitando que clicasse em um link para atualizar suas credenciais de acesso. Ao clicar no link, um código malicioso foi silenciosamente baixado e executado em sua máquina, criptografando todos os arquivos locais e exibindo uma tela com instruções para pagamento de um resgate em criptomoedas. O vetor inicial do ataque e o tipo de malware executado são, respectivamente:
+            [alternativa_a] => Phishing e Ransomware.
+            [alternativa_b] => Spoofing e Spyware.
+            [alternativa_c] => Ransomware e Phishing.
+            [alternativa_d] => Spear Phishing e Adware.
+            [alternativa_e] => Phishing e Trojan-Downloader.
+            [gabarito] => A
+            [explicacao] => O vetor inicial foi o Phishing (e-mail fraudulento para enganar a vítima). O payload/malware que criptografou os dados e exigiu resgate é o Ransomware. Atenção à ordem 'respectivamente' exigida no enunciado.
+        )
+
+    [6] => Array
+        (
+            [enunciado] => No Microsoft Excel, a célula C3 contém a fórmula `=$A$1 + B3`. Se o usuário copiar a célula C3 (Ctrl+C) e colá-la (Ctrl+V) na célula E5, a fórmula resultante na célula E5 será:
+            [alternativa_a] => =$A$1 + B3
+            [alternativa_b] => =$C$3 + D5
+            [alternativa_c] => =$A$1 + D5
+            [alternativa_d] => =$A$3 + D5
+            [alternativa_e] => =$C$1 + B5
+            [gabarito] => C
+            [explicacao] => O endereço '$A$1' possui referências absolutas (com o cifrão $), portanto não se altera ao ser copiado. A referência 'B3' é relativa. Ao mover de C3 para E5, deslocamos 2 colunas para a direita (C para E) e 2 linhas para baixo (3 para 5). Aplicando o mesmo deslocamento a B3: coluna B + 2 = D; linha 3 + 2 = 5. Logo, B3 vira D5.
+        )
+
+)
+Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.Erro Loop: Erro API Gemini (503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.

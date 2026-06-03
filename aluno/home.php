@@ -153,6 +153,20 @@ include __DIR__ . '/../includes/header_aluno.php';
                 </div>
                 <?php endif; ?>
 
+                <!-- RADAR DE CONCURSOS BANNER -->
+                <div class="card-glass p-4 mb-lg border-neon" style="background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), transparent); border-color: rgba(147, 51, 234, 0.5);">
+                    <div class="d-flex jc-between ai-center">
+                        <div class="d-flex ai-center gap-md">
+                            <div class="text-purple" style="font-size: 2rem;"><i class="fas fa-satellite-dish"></i></div>
+                            <div>
+                                <h5 class="fw-800 mb-xs">Radar de Oportunidades</h5>
+                                <p class="text-secondary mb-0" style="font-size: 0.85rem;">Mapeamos editais e milhares de vagas abertas no seu estado.</p>
+                            </div>
+                        </div>
+                        <a href="radar_concursos.php" class="btn-hc btn-purple btn-sm" style="background: var(--purple); color: #fff; border: none;">ACESSAR RADAR <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
                 <div class="row">
                     <div class="col-md-6">
                         <section class="card-glass h-100">

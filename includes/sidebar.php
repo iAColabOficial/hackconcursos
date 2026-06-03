@@ -24,6 +24,7 @@ function sidebarItem(string $href, string $icon, string $label, string $current,
 <?php if (!$is_admin): ?>
     <div class="sidebar-section-label" style="font-size:0.65rem; letter-spacing:1px; margin-top:1rem;">INÍCIO</div>
     <?= sidebarItem($base . '/home.php',          'house-door',      'Visão Geral',       $current_page) ?>
+    <?= sidebarItem($base . '/radar_concursos.php', 'satellite-dish', 'Radar de Concursos', $current_page, 'NOVO') ?>
     <?= sidebarItem($base . '/meus_concursos.php', 'bullseye',        'Meus Concursos',    $current_page) ?>
     <?= sidebarItem($base . '/dashboard.php',     'crosshair',       'Foco do Dia',       $current_page) ?>
 

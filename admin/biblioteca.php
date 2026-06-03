@@ -59,6 +59,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flashMsg('success', 'Concurso removido.');
         redirect('biblioteca.php');
     }
+
+    if ($action === 'approve') {
+        $id = (int)$_POST['id'];
+        $db->prepare("UPDATE biblioteca_editais SET situacao_adm = 'aprovado' WHERE id = ?")->execute([$id]);
+        flashMsg('success', 'Concurso aprovado e liberado para os alunos!');
+        redirect('biblioteca.php');
+    }
+
+    if ($action === 'edit') {
+        $id          = (int)$_POST['id'];
+        $nome        = sanitize($_POST['nome_concurso']);
+        $orgao       = sanitize($_POST['orgao']);
+        $banca       = sanitize($_POST['banca']);
+        $data_prova  = sanitize($_POST['data_prova']);
+        $abrangencia = sanitize($_POST['abrangencia']);
+        $numero_vagas= sanitize($_POST['numero_vagas']);
+        $status      = $_POST['status'];
+
+        try {
+            // Update basic info
+            $stmt = $db->prepare("UPDATE biblioteca_editais SET nome_concurso=?, orgao=?, banca=?, data_prova=?, abrangencia=?, numero_vagas=?, status=? WHERE id=?");
+            $stmt->execute([$nome, $orgao, $banca, $data_prova, $abrangencia, $numero_vagas, $status, $id]);
+
+            // Handle Image Upload
+            if (!empty($_FILES['imagem']['name'])) {
+                $ext = pathinfo($_FILES['imagem']['name'], PATHINFO_EXTENSION);
+                $new_name = 'card_' . time() . '.' . $ext;
+                if (move_uploaded_file($_FILES['imagem']['tmp_name'], __DIR__ . '/../assets/img/' . $new_name)) {
+                    $imagem_path = 'assets/img/' . $new_name;
+                    $db->prepare("UPDATE biblioteca_editais SET imagem=? WHERE id=?")->execute([$imagem_path, $id]);
+                }
+            }
+
+            // Handle PDF Upload
+            if (!empty($_FILES['edital_pdf']['name'])) {
+                $new_name = 'edital_' . time() . '.pdf';
+                if (move_uploaded_file($_FILES['edital_pdf']['tmp_name'], __DIR__ . '/../assets/editais/' . $new_name)) {
+                    $pdf_path = 'assets/editais/' . $new_name;
+                    $db->prepare("UPDATE biblioteca_editais SET edital_pdf=? WHERE id=?")->execute([$pdf_path, $id]);
+                }
+            }
+
+            flashMsg('success', 'Concurso atualizado com sucesso!');
+        } catch (Exception $e) {
+            flashMsg('danger', 'Erro ao atualizar: ' . $e->getMessage());
+        }
+        redirect('biblioteca.php');
+    }
 }
 
 // Listar concursos
@@ -91,6 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>Banca / Ano</th>
                         <th>Categoria</th>
                         <th>Status</th>
+                        <th>Aprovação</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -129,7 +178,33 @@ require_once __DIR__ . '/../includes/header.php';
                             <span class="badge-hc <?= $status_class[$st] ?? 'badge-blue' ?>"><?= strtoupper($st) ?></span>
                         </td>
                         <td>
+                            <?php if(($e['situacao_adm'] ?? '') === 'pendente'): ?>
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="action" value="approve">
+                                    <input type="hidden" name="id" value="<?= $e['id'] ?>">
+                                    <button type="submit" class="btn-hc btn-neon btn-sm" title="Aprovar Sugestão">
+                                        <i class="bi bi-check-lg"></i> APROVAR
+                                    </button>
+                                </form>
+                            <?php else: ?>
+                                <span class="badge-hc badge-neon" style="opacity:0.6;"><i class="bi bi-check-all"></i> LIBERADO</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
                             <div style="display:flex; gap:0.5rem;">
+                                <button class="btn-hc btn-ghost btn-sm btn-edit-concurso" 
+                                        data-id="<?= $e['id'] ?>" 
+                                        data-nome="<?= sanitize($e['nome_concurso']) ?>"
+                                        data-orgao="<?= sanitize($e['orgao']) ?>"
+                                        data-banca="<?= sanitize($e['banca']) ?>"
+                                        data-data="<?= $e['data_prova'] ?>"
+                                        data-abrangencia="<?= sanitize($e['abrangencia']) ?>"
+                                        data-vagas="<?= sanitize($e['numero_vagas']) ?>"
+                                        data-status="<?= $e['status'] ?>"
+                                        data-link="<?= sanitize($e['edital_pdf']) ?>"
+                                        title="Editar Dados">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
                                 <button class="btn-hc btn-ghost btn-sm btn-ia-analyze" 
                                         data-id="<?= $e['id'] ?>" 
                                         title="Analisar com IA">
@@ -229,6 +304,82 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Modal Editar -->
+<div id="modal-edit" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
+    <div class="card-glass" style="width:100%; max-width:600px;">
+        <div class="card-header-hc" style="display:flex; justify-content:space-between;">
+            <h5>Auditoria de Dados: <span id="edit-title-concurso"></span></h5>
+            <button class="btn-hc btn-ghost btn-sm" onclick="document.getElementById('modal-edit').style.display='none'">&times;</button>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="id" id="edit-id">
+                
+                <div class="form-group mb-md">
+                    <label>Nome do Concurso</label>
+                    <input type="text" name="nome_concurso" id="edit-nome" class="form-control-hc" required>
+                </div>
+
+                <div class="grid-2 mb-md">
+                    <div class="form-group">
+                        <label>Órgão</label>
+                        <input type="text" name="orgao" id="edit-orgao" class="form-control-hc" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Banca</label>
+                        <input type="text" name="banca" id="edit-banca" class="form-control-hc" required>
+                    </div>
+                </div>
+
+                <div class="grid-2 mb-md">
+                    <div class="form-group">
+                        <label>Data da Prova</label>
+                        <input type="date" name="data_prova" id="edit-data" class="form-control-hc">
+                    </div>
+                    <div class="form-group">
+                        <label>Abrangência</label>
+                        <input type="text" name="abrangencia" id="edit-abrangencia" class="form-control-hc">
+                    </div>
+                </div>
+
+                <div class="grid-2 mb-md">
+                    <div class="form-group">
+                        <label>Nº de Vagas</label>
+                        <input type="text" name="numero_vagas" id="edit-vagas" class="form-control-hc">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="status" id="edit-status" class="form-control-hc">
+                            <option value="aberto">Aberto</option>
+                            <option value="previsto">Previsto</option>
+                            <option value="encerrado">Encerrado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group mb-md">
+                    <label>Link Sugerido / Arquivo Atual</label>
+                    <div class="d-flex gap-sm">
+                        <input type="text" id="edit-link-display" class="form-control-hc" readonly style="opacity:0.7;">
+                        <a href="#" id="edit-link-btn" target="_blank" class="btn-hc btn-ghost" title="Abrir Link"><i class="bi bi-box-arrow-up-right"></i></a>
+                    </div>
+                </div>
+
+                <div class="form-group mb-md">
+
+                <div class="form-group mb-lg">
+                    <label>Atualizar PDF do Edital</label>
+                    <input type="file" name="edital_pdf" class="form-control-hc" accept=".pdf">
+                    <small class="text-muted">Deixe em branco para manter o PDF atual.</small>
+                </div>
+
+                <button type="submit" class="btn-hc btn-neon w-100">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Ver Disciplinas -->
 <div id="modal-view" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
     <div class="card-glass" style="width:100%; max-width:600px;">
@@ -303,6 +454,32 @@ document.querySelectorAll('.btn-view-disciplinas').forEach(btn => {
                 document.getElementById('view-body').innerHTML = '<p class="text-danger">Erro ao carregar: ' + data.error + '</p>';
             }
         });
+    });
+});
+
+document.querySelectorAll('.btn-edit-concurso').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('edit-id').value = this.getAttribute('data-id');
+        document.getElementById('edit-nome').value = this.getAttribute('data-nome');
+        document.getElementById('edit-orgao').value = this.getAttribute('data-orgao');
+        document.getElementById('edit-banca').value = this.getAttribute('data-banca');
+        document.getElementById('edit-data').value = this.getAttribute('data-data');
+        document.getElementById('edit-abrangencia').value = this.getAttribute('data-abrangencia');
+        document.getElementById('edit-vagas').value = this.getAttribute('data-vagas');
+        document.getElementById('edit-status').value = this.getAttribute('data-status');
+        
+        const link = this.getAttribute('data-link');
+        document.getElementById('edit-link-display').value = link || 'Nenhum link enviado';
+        const btnLink = document.getElementById('edit-link-btn');
+        if (link && (link.startsWith('http') || link.includes('.pdf'))) {
+            btnLink.href = link.startsWith('http') ? link : '<?= APP_URL ?>/' + link;
+            btnLink.style.display = 'flex';
+        } else {
+            btnLink.style.display = 'none';
+        }
+
+        document.getElementById('edit-title-concurso').textContent = this.getAttribute('data-nome');
+        document.getElementById('modal-edit').style.display = 'flex';
     });
 });
 </script>

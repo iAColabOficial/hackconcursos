@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hack Concursos — Plano de Estudos & Simulados IA</title>
+  <meta name="description" content="Gere seu plano de estudos e simulados personalizados com IA para concursos públicos.">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="ring"></div>
+  <div class="ld-t" id="ld-t">Processando...</div>
+  <div class="ld-s" id="ld-s">Aguarde</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <a href="/" class="logo">
+      <div class="logo-ico">⚡</div>
+      <div class="logo-nm">Hack<span>Concursos</span></div>
+    </a>
+
+    <div id="auth-controls" style="display:none; align-items:center; gap:12px">
+      <span style="font-size:0.85rem; color:var(--t2)">Olá, <strong id="user-name-display" style="color:var(--t1)"></strong></span>
+      <button class="btn-gh" style="padding:6px 14px; font-size:0.75rem; border-radius:var(--r-sm); cursor:pointer" onclick="fazerLogout()">Sair</button>
+    </div>
+  </header>
+
+  <!-- NAVEGAÇÃO -->
+  <nav class="tabs" id="main-nav" style="display:none; margin-bottom:24px">
+    <button class="tab on" id="tab-plano" onclick="goView('plano')">📅 Plano de Estudos</button>
+    <button class="tab" id="tab-sim" onclick="goView('sim')">🎯 Simulado IA</button>
+    <button class="tab" id="tab-hist" onclick="goView('hist')">📊 Histórico</button>
+  </nav>
+
+  <!-- ══════════ AUTENTICAÇÃO ══════════ -->
+  <div class="view on" id="auth-view" style="display:flex; justify-content:center; align-items:center; min-height:60vh">
+    <div class="glass fcard" style="max-width:400px; width:100%; padding:40px 30px; text-align:center">
+      <div class="logo-ico" style="margin:0 auto 20px">⚡</div>
+      <h2 style="font-size:1.5rem; justify-content:center; margin-bottom:10px" id="auth-title">Entrar</h2>
+      <p style="color:var(--t3); font-size:0.9rem; margin-bottom:24px" id="auth-sub">Acesse seus planos e simulados</p>
+      
+      <div class="fg" id="auth-nome-fg" style="display:none; text-align:left; margin-bottom:12px">
+        <label for="auth-nome">Nome</label>
+        <input id="auth-nome" class="inp" type="text" placeholder="Seu nome">
+      </div>
+      <div class="fg" style="text-align:left; margin-bottom:12px">
+        <label for="auth-email">E-mail</label>
+        <input id="auth-email" class="inp" type="email" placeholder="seu@email.com">
+      </div>
+      <div class="fg" style="text-align:left; margin-bottom:24px">
+        <label for="auth-senha">Senha</label>
+        <input id="auth-senha" class="inp" type="password" placeholder="••••••••">
+      </div>
+      
+      <button class="btn btn-n btn-full" style="margin-top:0" id="btn-auth-submit" onclick="submitAuth()">Entrar</button>
+      
+      <div style="margin-top:20px; font-size:0.85rem; color:var(--t2)">
+        <span id="auth-switch-text">Não tem conta?</span>
+        <a href="#" style="color:var(--neon); text-decoration:none; font-weight:700" onclick="toggleAuthMode(); return false" id="auth-switch-btn">Cadastre-se</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PLANO DE ESTUDOS ══════════ -->
+  <div class="view" id="plano-view">
+    <div class="hero">
+      <div class="hero-badge"><span class="dot"></span> Algoritmo Puro · 100% Python · Sem IA</div>
+      <h1>Cronograma inteligente<br>para <span class="grad">você ser aprovado</span></h1>
+      <p>Informe suas matérias, pesos e a data da prova. O algoritmo distribui seus estudos matematicamente, reservando os últimos 7 dias para revisão.</p>
+    </div>
+
+    <div class="glass glass-neon fcard">
+      <h2><span class="ic">📋</span> Dados do Concurso</h2>
+      <div class="fg2">
+        <div class="fg full">
+          <label for="nome-conc">Nome do Concurso</label>
+          <input id="nome-conc" class="inp" type="text" placeholder="Ex: TJ-SP Escrevente 2025">
+        </div>
+        <div class="fg">
+          <label for="dt-inicio">Data de Início dos Estudos</label>
+          <input id="dt-inicio" class="inp" type="date">
+        </div>
+        <div class="fg">
+          <label for="dt-prova">Data da Prova</label>
+          <input id="dt-prova" class="inp" type="date">
+        </div>
+        <div class="fg">
+          <label for="hrs">Horas de Estudo por Dia</label>
+          <select id="hrs" class="inp">
+            <option value="1">1 hora</option>
+            <option value="1.5">1h 30min</option>
+            <option value="2" selected>2 horas</option>
+            <option value="3">3 horas</option>
+            <option value="4">4 horas</option>
+            <option value="5">5 horas</option>
+            <option value="6">6 horas</option>
+            <option value="8">8 horas</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass fcard">
+      <h2><span class="ic">📚</span> Matérias e Tópicos</h2>
+      <div id="materias-container"></div>
+      <button class="add-mat" onclick="addMateria()">+ Adicionar Matéria</button>
+      <button class="btn btn-n btn-full" id="btn-gerar-plano" onclick="gerarPlano()">📅 Gerar Cronograma</button>
+    </div>
+  </div>
+
+  <!-- CRONOGRAMA GERADO -->
+  <div id="crono-view" style="display:none">
+    <div class="crono-hdr">
+      <div>
+        <h2 id="crono-titulo">Cronograma</h2>
+        <div style="color:var(--t2);font-size:.85rem;margin-top:4px" id="crono-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-g" onclick="goSimFromPlano()">🎯 Gerar Simulado deste Plano</button>
+        <button class="btn btn-gh" onclick="voltarPlano()">← Novo Plano</button>
+      </div>
+    </div>
+
+    <!-- Resumo Stats -->
+    <div class="res-grid" id="res-stats"></div>
+
+    <!-- Barras por Matéria -->
+    <div class="glass fcard bars" id="bars-wrap">
+      <h3>⏱️ Horas estimadas por matéria</h3>
+      <div id="bars-content"></div>
+    </div>
+
+    <!-- Filtro por Semana -->
+    <div class="wf" id="wf"></div>
+
+    <!-- Lista de Dias -->
+    <div id="dias-list"></div>
+  </div>
+
+  <!-- ══════════ SIMULADO ══════════ -->
+  <div class="view" id="sim-view">
+    <div class="hero">
+      <div class="hero-badge"><span class="dot"></span> Powered by Gemini AI · Questões Inéditas</div>
+      <h1>Simulado sob medida<br><span class="grad">no estilo da banca</span></h1>
+      <p>Escolha matéria, tópico e banca. A IA gera questões inéditas com gabarito e justificativas técnicas.</p>
+    </div>
+
+    <div class="glass glass-green fcard">
+      <h2><span class="ic-g">🎯</span> Configure seu Simulado</h2>
+      <div class="fg2">
+        <div class="fg">
+          <label for="s-mat">Matéria</label>
+          <input id="s-mat" class="inp" type="text" placeholder="Ex: Direito Constitucional" list="mat-list">
+          <datalist id="mat-list">
+            <option value="Língua Portuguesa"><option value="Matemática e Raciocínio Lógico">
+            <option value="Direito Constitucional"><option value="Direito Administrativo">
+            <option value="Direito Penal"><option value="Informática"><option value="Atualidades">
+          </datalist>
+        </div>
+        <div class="fg">
+          <label for="s-banca">Banca Examinadora</label>
+          <select id="s-banca" class="inp">
+            <option value="CEBRASPE/CESPE">CEBRASPE / CESPE</option>
+            <option value="FGV">FGV</option>
+            <option value="FCC">FCC</option>
+            <option value="VUNESP">VUNESP</option>
+            <option value="QUADRIX">QUADRIX</option>
+            <option value="AOCP">AOCP</option>
+          </select>
+        </div>
+        <div class="fg full">
+          <label for="s-top">Tópico Específico</label>
+          <input id="s-top" class="inp" type="text" placeholder="Ex: Princípios da Administração Pública, Crase...">
+        </div>
+        <div class="fg">
+          <label>Dificuldade</label>
+          <div class="diff-g">
+            <button class="df" id="df-f" onclick="setDiff('Fácil')">😌 Fácil</button>
+            <button class="df sm" id="df-m" onclick="setDiff('Média')">⚡ Média</button>
+            <button class="df" id="df-d" onclick="setDiff('Difícil')">🔥 Difícil</button>
+          </div>
+        </div>
+        <div class="fg">
+          <label>Quantidade de Questões</label>
+          <div class="qty-row">
+            <div class="qty-v" id="qty-v">5</div>
+            <input type="range" id="qty" min="3" max="15" value="5" oninput="document.getElementById('qty-v').textContent=this.value">
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-g btn-full" id="btn-gerar-sim" onclick="gerarSimulado()">✨ Gerar Simulado com IA</button>
+    </div>
+  </div>
+
+  <!-- SIMULADO EM EXECUÇÃO -->
+  <div id="sim-exec-view" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div class="sim-meta" id="sim-meta"></div>
+      <button class="btn btn-gh" style="font-size:.82rem;padding:9px 18px" onclick="voltarSim()">← Novo Simulado</button>
+    </div>
+    <div class="prog"><div class="prog-f" id="prog-f" style="width:0%"></div></div>
+    <div id="q-list"></div>
+    <div style="text-align:center;margin-top:28px">
+      <button class="btn btn-g" style="padding:14px 44px;font-size:.95rem" onclick="finalizarSim()">Finalizar e Ver Resultado 🏁</button>
+      <div style="margin-top:10px;font-size:.8rem;color:var(--t3)" id="ans-count">0 de 0 respondidas</div>
+    </div>
+  </div>
+
+  <!-- RESULTADO -->
+  <div id="res-view" style="display:none">
+    <div class="glass glass-neon res-hero">
+      <div class="score-r">
+        <svg width="130" height="130" viewBox="0 0 130 130">
+          <circle cx="65" cy="65" r="54" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="9"/>
+          <circle cx="65" cy="65" r="54" fill="none" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="339.3" stroke-dashoffset="339.3" id="sc-circle"
+                  style="transition:stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)"/>
+        </svg>
+        <div class="rtxt">
+          <div class="rpct" id="r-pct">0%</div>
+          <div class="rlbl">de acerto</div>
+        </div>
+      </div>
+      <div class="rt" id="r-title"></div>
+      <div class="rs" id="r-sub"></div>
+    </div>
+    <div class="sg">
+      <div class="glass sc"><div class="sv" id="r-ac" style="color:var(--green)">—</div><div class="sl">Acertos</div></div>
+      <div class="glass sc"><div class="sv" id="r-er" style="color:var(--red)">—</div><div class="sl">Erros</div></div>
+      <div class="glass sc"><div class="sv" id="r-tot" style="color:var(--neon)">—</div><div class="sl">Total</div></div>
+    </div>
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">📋 Gabarito Comentado</h3>
+    <div id="gab-list"></div>
+    <div style="display:flex;gap:10px;margin-top:28px">
+      <button class="btn btn-g" style="flex:1;padding:13px" onclick="voltarSim()">✨ Novo Simulado</button>
+      <button class="btn btn-gh" style="padding:13px 22px" onclick="goView('hist')">Ver Histórico</button>
+    </div>
+  </div>
+
+  <!-- ══════════ HISTÓRICO ══════════ -->
+  <div class="view" id="hist-view">
+    <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:20px">📊 Histórico de Simulados</h2>
+    <div class="glass" style="padding:6px 0;overflow:hidden;border-radius:var(--r-lg)">
+      <div id="hist-content" style="overflow-x:auto">
+        <div class="empty"><div class="ei">⏳</div><p>Carregando...</p></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
