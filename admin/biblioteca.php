@@ -1,12 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
-exigirLogin('../login.php');
-
-// Verificar se é admin
-if (($_SESSION['perfil'] ?? '') !== 'admin') {
-    flashMsg('danger', 'Acesso negado.');
-    redirect('../aluno/dashboard.php');
-}
+exigirAdmin('../login.php');
 
 $db = getDB();
 

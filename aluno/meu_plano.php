@@ -2,36 +2,76 @@
 require_once __DIR__ . '/../config/config.php';
 exigirLogin('../login.php');
 
-$db = getDB();
-$usuario_id = $_SESSION['usuario_id'];
+$db         = getDB();
+$usuario_id = (int)$_SESSION['usuario_id'];
 
-// --- LÓGICA DE SINCRONIZAÇÃO AUTOMÁTICA (Fallback para Localhost) ---
+// --- SINCRONIZAÇÃO AUTOMÁTICA COM DEDUPLICAÇÃO (FIX C8) ---
 if (isset($_GET['session_id'])) {
-    $session_id = $_GET['session_id'];
-    
-    // Consultar Stripe para ver se essa sessão está paga
-    $ch = curl_init("https://api.stripe.com/v1/checkout/sessions/$session_id");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_USERPWD, STRIPE_SECRET_KEY . ':');
-    $res = curl_exec($ch);
-    $session_data = json_decode($res, true);
-    curl_close($ch);
+    $session_id = preg_replace('/[^a-zA-Z0-9_]/', '', $_GET['session_id']); // sanitizar
 
-    if (isset($session_data['payment_status']) && $session_data['payment_status'] === 'paid') {
-        $tipo = $session_data['metadata']['tipo'] ?? 'assinatura';
-        
-        // Verificar se já processamos essa sessão (para não duplicar)
-        // No MVP vamos apenas processar, mas o ideal é salvar o session_id no banco
-        if ($tipo === 'tokens') {
-            $db->prepare("UPDATE usuarios SET token_saldo = token_saldo + 50 WHERE id = ?")->execute([$usuario_id]);
-            $db->prepare("INSERT INTO token_transacoes (usuario_id, tipo, quantidade, descricao) VALUES (?, 'compra', 50, 'Sincronização Direta Stripe')")->execute([$usuario_id]);
+    if (!empty($session_id)) {
+        // Verificar deduplicação ANTES de consultar a API
+        $chkDup = $db->prepare("SELECT COUNT(*) FROM token_transacoes WHERE stripe_session_id = ? AND usuario_id = ?");
+        $chkDup->execute([$session_id, $usuario_id]);
+
+        if ($chkDup->fetchColumn() > 0) {
+            // Já processado — não fazer nada, apenas mostrar mensagem
+            flashMsg('info', 'Pagamento já foi sincronizado anteriormente.');
         } else {
-            $db->prepare("UPDATE usuarios SET plano = 'premium', status_assinatura = 'ativa' WHERE id = ?")->execute([$usuario_id]);
+            // Consultar Stripe para verificar se o pagamento é válido
+            $ch = curl_init("https://api.stripe.com/v1/checkout/sessions/" . urlencode($session_id));
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_USERPWD        => STRIPE_SECRET_KEY . ':',
+                CURLOPT_SSL_VERIFYPEER => true,   // FIX A5
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_TIMEOUT        => 15,      // FIX B5
+            ]);
+            $res          = curl_exec($ch);
+            $httpCode     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError    = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError || $httpCode !== 200) {
+                error_log("meu_plano sync cURL: {$curlError} HTTP {$httpCode}");
+                flashMsg('danger', 'Não foi possível verificar o pagamento. Tente recarregar em instantes.');
+            } else {
+                $session_data = json_decode($res, true);
+
+                // Validar que o pagamento é deste usuário
+                $uid_stripe = (int)($session_data['metadata']['usuario_id'] ?? 0);
+
+                if ($session_data['payment_status'] === 'paid' && $uid_stripe === $usuario_id) {
+                    $tipo = $session_data['metadata']['tipo'] ?? 'assinatura';
+
+                    if ($tipo === 'tokens') {
+                        $db->prepare("UPDATE usuarios SET token_saldo = token_saldo + 50 WHERE id = ?")
+                           ->execute([$usuario_id]);
+                        $db->prepare("INSERT INTO token_transacoes (usuario_id, tipo, quantidade, descricao, stripe_session_id) VALUES (?, 'compra', 50, 'Sincronização Direta Stripe', ?)")
+                           ->execute([$usuario_id, $session_id]);
+                        // Registrar pedido para faturamento do dashboard (FIX M12)
+                        $db->prepare("INSERT INTO pedidos (usuario_id, total, status) VALUES (?, 29.00, 'pago')")
+                           ->execute([$usuario_id]);
+                    } else {
+                        $db->prepare("UPDATE usuarios SET plano = 'premium', status_assinatura = 'ativa' WHERE id = ?")
+                           ->execute([$usuario_id]);
+                        $db->prepare("INSERT INTO token_transacoes (usuario_id, tipo, quantidade, descricao, stripe_session_id) VALUES (?, 'assinatura', 0, 'Ativação Premium Direta', ?)")
+                           ->execute([$usuario_id, $session_id]);
+                        // Registrar pedido para faturamento do dashboard (FIX M12)
+                        $db->prepare("INSERT INTO pedidos (usuario_id, total, status) VALUES (?, 49.90, 'pago')")
+                           ->execute([$usuario_id]);
+                    }
+                    flashMsg('success', 'Pagamento sincronizado e créditos liberados!');
+                } elseif ($uid_stripe !== $usuario_id && $uid_stripe > 0) {
+                    error_log("meu_plano: tentativa de crédito cruzado uid_session={$uid_stripe} uid_logado={$usuario_id}");
+                    flashMsg('danger', 'Sessão de pagamento inválida para este usuário.');
+                }
+            }
         }
-        flashMsg('success', 'Pagamento sincronizado e créditos liberados!');
     }
 }
 // --- FIM DA SINCRONIZAÇÃO ---
+
 
 // Buscar dados atualizados do usuário
 $stmt = $db->prepare("SELECT nome, email, plano, token_saldo, status_assinatura FROM usuarios WHERE id = ?");

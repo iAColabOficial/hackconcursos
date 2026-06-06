@@ -3,8 +3,17 @@ require_once __DIR__ . '/../config/config.php';
 exigirLogin('../login.php');
 
 $tipo = $_GET['tipo'] ?? 'assinatura'; // 'assinatura' ou 'tokens'
-$usuario_id = $_SESSION['usuario_id'];
-$email = $_SESSION['email'];
+// FIX M7: Whitelist explícita de tipo para evitar injeção
+if (!in_array($tipo, ['assinatura', 'tokens'], true)) {
+    die('Tipo de checkout inválido.');
+}
+
+$usuario_id = (int)$_SESSION['usuario_id'];
+$email = filter_var($_SESSION['email'], FILTER_VALIDATE_EMAIL);
+
+if (!$email) {
+    die('E-mail do usuário inválido.');
+}
 
 // Configurações baseadas no tipo
 if ($tipo === 'tokens') {
@@ -31,6 +40,10 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_USERPWD, STRIPE_SECRET_KEY . ':');
 
+// FIX A5: Ativação obrigatória de SSL para evitar man-in-the-middle
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+
 $post_data = [
     'success_url' => $success_url,
     'cancel_url' => $cancel_url,
@@ -46,7 +59,8 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_data));
 
 $result = curl_exec($ch);
 if (curl_errno($ch)) {
-    die('Erro cURL: ' . curl_error($ch));
+    error_log('Stripe checkout cURL error: ' . curl_error($ch));
+    die('Ocorreu um erro de comunicação com o gateway de pagamento. Tente novamente.');
 }
 curl_close($ch);
 
@@ -55,8 +69,8 @@ $session = json_decode($result, true);
 if (isset($session['url'])) {
     header("Location: " . $session['url']);
 } else {
-    echo "<h3>Erro ao criar sessão de checkout</h3>";
-    echo "<pre>";
-    print_r($session);
-    echo "</pre>";
+    // FIX A6: Não expor payloads do gateway ao usuário (escrever em logs)
+    error_log('Stripe session creation failed: ' . json_encode($session));
+    die('Erro ao processar pagamento. Contate o suporte técnico.');
 }
+

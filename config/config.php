@@ -26,11 +26,11 @@ define('APP_NAME',    'HackConcursos');
 define('APP_VERSION', '1.0.0');
 define('APP_URL',     env('APP_URL', 'http://localhost/Hackconcurso'));
 
-// Banco de Dados (Puxando do .env)
+// Banco de Dados (Puxando do .env — sem fallback para evitar credenciais padrão em produção)
 define('DB_HOST',    env('DB_HOST', 'localhost'));
 define('DB_NAME',    env('DB_NAME', 'estudoconcursos'));
-define('DB_USER',    env('DB_USER', 'root'));
-define('DB_PASS',    env('DB_PASS', '1234'));
+define('DB_USER',    env('DB_USER', 'root'));      // Manter fallback só em dev local
+define('DB_PASS',    env('DB_PASS', ''));           // FIX C6: sem fallback de senha em produção
 define('DB_CHARSET', 'utf8mb4');
 
 // Google Gemini API (Configuração Atualizada 2.5 Flash)
@@ -39,10 +39,14 @@ define('GEMINI_MODEL',   'gemini-flash-latest');
 define('GEMINI_BASE_URL','https://generativelanguage.googleapis.com/v1beta/models/');
 
 // Configurações do Stripe
-define('STRIPE_PUBLIC_KEY', env('STRIPE_PUBLIC_KEY'));
-define('STRIPE_SECRET_KEY', env('STRIPE_SECRET_KEY'));
-define('PRICE_MODO_TURBO',  env('STRIPE_PRICE_MODO_TURBO',  'price_turbo_id'));
-define('PRICE_MASTERMIND',  env('STRIPE_PRICE_MASTERMIND', 'price_mastermind_id'));
+define('STRIPE_PUBLIC_KEY',    env('STRIPE_PUBLIC_KEY'));
+define('STRIPE_SECRET_KEY',    env('STRIPE_SECRET_KEY'));
+define('STRIPE_WEBHOOK_SECRET', env('STRIPE_WEBHOOK_SECRET', '')); // FIX C1
+define('PRICE_MODO_TURBO',     env('STRIPE_PRICE_MODO_TURBO',  'price_turbo_id'));
+define('PRICE_MASTERMIND',     env('STRIPE_PRICE_MASTERMIND', 'price_mastermind_id'));
+// FIX A12: Aliases necessários para stripe_checkout.php
+define('PRICE_MODO_GUERRA',    env('STRIPE_PRICE_MODO_TURBO',  'price_turbo_id'));
+define('PRICE_50_TOKENS',      env('STRIPE_PRICE_50_TOKENS',   'price_tokens_id'));
 
 // --- DEFINIÇÕES DE PLANOS E ENERGIA (GAMESYSTEM) ---
 define('PLANO_ACESSO',    'free');      // Modo Discovery
@@ -76,10 +80,18 @@ define('BCRYPT_COST',    12);
 define('SESSION_NAME',   'hc_session');
 define('SESSION_LIFE',   86400 * 7);
 
-// DEBUG TOTAL (Para ver o erro real na tela)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// FIX C5: Controle de exibição de erros baseado no ambiente
+$appEnv = env('APP_ENV', 'development');
+if ($appEnv === 'development') {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+} else {
+    error_reporting(0);
+    ini_set('display_errors', 0);
+    ini_set('display_startup_errors', 0);
+    ini_set('log_errors', 1);
+}
 date_default_timezone_set('America/Sao_Paulo');
 
 // === CONEXÃO PDO ===
@@ -104,10 +116,13 @@ function getDB(): PDO {
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
         } catch (PDOException $e) {
-            // Em vez de erro 500 genérico, vamos ver o que o MySQL diz:
-            echo "<h1>Erro de Conexão com o Banco de Dados</h1>";
-            echo "<p>Verifique o arquivo <b>.env</b> na raiz.</p>";
-            echo "<pre>" . $e->getMessage() . "</pre>";
+            // FIX A11: Não expor detalhes técnicos ao usuário em produção
+            error_log('Falha na conexão com o banco de dados: ' . $e->getMessage());
+            if (env('APP_ENV', 'development') === 'development') {
+                echo '<h1>Erro de Conexão (DEV)</h1><pre>' . htmlspecialchars($e->getMessage()) . '</pre>';
+            } else {
+                echo '<h1>Serviço temporàriamente indisponível</h1><p>Tente novamente em instantes. Se o problema persistir, contate o suporte.</p>';
+            }
             die();
         }
     }
@@ -121,7 +136,7 @@ function iniciarSessao(): void {
         session_set_cookie_params([
             'lifetime' => SESSION_LIFE,
             'path'     => '/',
-            'secure'   => false, // true em HTTPS produção
+            'secure'   => env('APP_ENV', 'production') === 'production', // true em HTTPS produção (M14)
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
@@ -175,6 +190,22 @@ function formatarMoeda(float $valor): string {
 
 function gerarToken(int $length = 32): string {
     return bin2hex(random_bytes($length));
+}
+
+function getCSRFToken(): string {
+    iniciarSessao();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verificarCSRFToken(?string $token): bool {
+    iniciarSessao();
+    if (empty($_SESSION['csrf_token']) || empty($token)) {
+        return false;
+    }
+    return hash_equals($_SESSION['csrf_token'], $token);
 }
 
 function redirect(string $url): void {

@@ -4,6 +4,7 @@ exigirLogin('../public/login.php');
 
 $db  = getDB();
 $uid = (int)$_SESSION['usuario_id'];
+require_once __DIR__ . '/../classes/GatilhoEngine.php';
 $simuladoId = (int)($_GET['id'] ?? 0);
 
 if (!$simuladoId) {
@@ -29,7 +30,7 @@ if (!$simulado) {
 
 // Buscar questões
 $questQ = $db->prepare("
-    SELECT q.*, d.nome AS disciplina_nome, r.resposta AS resp_usuario, r.correta
+    SELECT q.*, d.nome AS disciplina_nome, r.resposta AS resp_usuario, r.correta, r.posicao_questao
     FROM questoes q
     LEFT JOIN disciplinas d ON d.id = q.disciplina_id
     LEFT JOIN respostas_usuario r ON r.questao_id = q.id AND r.usuario_id = ?
@@ -39,7 +40,46 @@ $questQ = $db->prepare("
 $questQ->execute([$uid, $simuladoId]);
 $questoes = $questQ->fetchAll();
 
+// Calcular Fatigue Index
+$respostasValidas = array_filter($questoes, fn($q) => $q['posicao_questao'] !== null);
+usort($respostasValidas, fn($a, $b) => $a['posicao_questao'] <=> $b['posicao_questao']);
+$totalResp = count($respostasValidas);
+
+$fatigueIndex = null;
+$fatigueAlert = false;
+$primeirasPct = 0;
+$ultimasPct = 0;
+$primeirasTotal = 0;
+$ultimasTotal = 0;
+
+if ($totalResp >= 10) { 
+    $numG = min(10, (int)ceil($totalResp / 2));
+    $primeiras = array_slice($respostasValidas, 0, $numG);
+    $ultimas = array_slice($respostasValidas, -$numG);
+
+    $primeirasTotal = count($primeiras);
+    $ultimasTotal = count($ultimas);
+    
+    $primeirasAcertos = array_reduce($primeiras, fn($c, $q) => $c + ($q['correta'] ? 1 : 0), 0);
+    $ultimasAcertos = array_reduce($ultimas, fn($c, $q) => $c + ($q['correta'] ? 1 : 0), 0);
+
+    $primeirasPct = round(($primeirasAcertos / max(1,$primeirasTotal)) * 100);
+    $ultimasPct = round(($ultimasAcertos / max(1,$ultimasTotal)) * 100);
+
+    $fatigueIndex = $primeirasPct - $ultimasPct;
+    if ($fatigueIndex > 20) {
+        $fatigueAlert = true;
+    }
+}
+
 $finalizado = (bool)$simulado['concluido'];
+
+$ofertaGatilho = null;
+if ($finalizado) {
+    $engineOfertas = new GatilhoEngine($db, $uid);
+    $ofertaGatilho = $engineOfertas->verificarGatilhoSimulado($simuladoId);
+}
+
 $page_title = $finalizado ? 'Resultado do Simulado' : 'Simulado em Andamento';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -103,6 +143,45 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <?php if ($fatigueIndex !== null): ?>
+    <div class="card-glass mb-4" style="background:linear-gradient(90deg, rgba(168,85,247,0.05), rgba(0,0,0,0)); border:1px solid rgba(168,85,247,0.2); padding:1.25rem;">
+        <div class="d-flex ai-center gap-md">
+            <div style="font-size:2rem;"><?= $fatigueAlert ? '🚨' : '🔋' ?></div>
+            <div style="flex:1;">
+                <div style="font-weight:800; color:var(--accent-purple); font-size:0.9rem; text-transform:uppercase;">Índice de Fadiga (Fatigue Index)</div>
+                <div style="font-size:1rem; margin-top:0.25rem;">
+                    Você acertou <strong><?= $primeirasPct ?>%</strong> nas primeiras <?= $primeirasTotal ?> questões e <strong><?= $ultimasPct ?>%</strong> nas últimas <?= $ultimasTotal ?>.
+                    <?php if ($fatigueAlert): ?>
+                        <br><span class="text-danger fw-700">Queda brusca de desempenho! Você está perdendo foco por cansaço.</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($ofertaGatilho): ?>
+    <div class="card-glass mb-4 animate__animated animate__pulse animate__infinite" style="background:linear-gradient(90deg, rgba(245,158,11,0.1), rgba(0,0,0,0)); border:2px solid var(--warning); padding:1.5rem;">
+        <div class="d-flex ai-center gap-md">
+            <div style="font-size:2.5rem;">🎁</div>
+            <div style="flex:1;">
+                <div class="badge-hc badge-warning mb-xs">Oferta Especial Desbloqueada</div>
+                <h4 class="fw-800 text-warning mb-xs"><?= sanitize($ofertaGatilho['titulo']) ?></h4>
+                <div style="font-size:1rem; color:var(--text-secondary);">
+                    <?= sanitize($ofertaGatilho['descricao']) ?>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-muted" style="text-decoration:line-through; font-size:0.9rem;">De R$ <?= number_format($ofertaGatilho['preco'], 2, ',', '.') ?></div>
+                <div class="text-warning fw-900 mb-2" style="font-size:1.5rem;">Por R$ <?= number_format($ofertaGatilho['preco'] - $ofertaGatilho['valor_desconto'], 2, ',', '.') ?></div>
+                <a href="<?= sanitize($ofertaGatilho['link_stripe'] ?: 'checkout.php?oferta='.$ofertaGatilho['id']) ?>" class="btn-hc" style="background:var(--warning); color:#000; font-weight:900;">
+                    RESGATAR AGORA
+                </a>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Relatório por Disciplina (Profissional) -->
     <div class="card-glass mb-lg" style="padding:1.5rem;">
@@ -387,7 +466,10 @@ require_once __DIR__ . '/../includes/header.php';
         try {
             await fetch('<?= APP_URL ?>/controllers/simulado_action.php?action=responder', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.csrfToken || ''
+                },
                 body: JSON.stringify({
                     simulado_id: <?= $simuladoId ?>,
                     questao_id: qId,
@@ -414,7 +496,10 @@ require_once __DIR__ . '/../includes/header.php';
         try {
             const r = await fetch('<?= APP_URL ?>/controllers/simulado_action.php?action=finalizar', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.csrfToken || ''
+                },
                 body: JSON.stringify({
                     simulado_id: <?= $simuladoId ?>,
                     tempo_minutos: tempoMinutos

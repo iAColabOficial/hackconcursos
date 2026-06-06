@@ -27,6 +27,10 @@ $usuario_plano = $_SESSION['plano'] ?? 'free';
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<?= getCSRFToken() ?>">
+  <script>
+    window.csrfToken = "<?= getCSRFToken() ?>";
+  </script>
   <title><?= isset($page_title) ? sanitize($page_title) . ' | ' : '' ?>HackConcursos</title>
   <meta name="description" content="<?= isset($page_desc) ? sanitize($page_desc) : 'Plataforma de estudos inteligente para concursos públicos. IA que transforma editais em planos de estudo personalizados.' ?>">
   <!-- Google Fonts -->

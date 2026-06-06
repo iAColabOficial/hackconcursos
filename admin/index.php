@@ -1,12 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
-exigirLogin('../login.php');
-
-// Verificar se é admin
-if (($_SESSION['perfil'] ?? '') !== 'admin') {
-    flashMsg('danger', 'Acesso negado.');
-    redirect('../aluno/dashboard.php');
-}
+exigirAdmin('../login.php');
 
 $db = getDB();
 
@@ -15,6 +9,16 @@ $totalUsers = $db->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'aluno'")
 $totalEditais = $db->query("SELECT COUNT(*) FROM editais")->fetchColumn();
 $totalSimulados = $db->query("SELECT COUNT(*) FROM simulados")->fetchColumn();
 $totalVendas = $db->query("SELECT SUM(total) FROM pedidos WHERE status = 'pago'")->fetchColumn() ?? 0;
+
+// Métricas de IA (Consumo do Dia)
+$tokensHoje = $db->query("
+    SELECT ABS(SUM(quantidade)) 
+    FROM token_transacoes 
+    WHERE tipo = 'consumo' AND DATE(criado_em) = CURDATE()
+")->fetchColumn() ?? 0;
+
+// Custo médio estimado de API Gemini (R$ 0,05 por token consumido na média)
+$custoEstimadoIA = $tokensHoje * 0.05;
 
 // Gráfico de novos usuários (últimos 7 dias) - DADOS REAIS
 $statsQ = $db->query("
@@ -100,6 +104,24 @@ require_once __DIR__ . '/../includes/header.php';
         <div>
           <div class="kpi-label">Receita Total</div>
           <div class="kpi-value text-warning">R$ <?= number_format($totalVendas, 2, ',', '.') ?></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI CARDS IA (Consumo e Custo Estimado) -->
+    <div class="grid-2 mb-lg" style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+      <div class="kpi-card">
+        <div class="kpi-icon purple"><i class="bi bi-cpu"></i></div>
+        <div>
+          <div class="kpi-label">Tokens IA Consumidos Hoje</div>
+          <div class="kpi-value text-purple"><?= $tokensHoje ?></div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon warn"><i class="bi bi-calculator"></i></div>
+        <div>
+          <div class="kpi-label">Custo Estimado de IA Hoje</div>
+          <div class="kpi-value text-warning">R$ <?= number_format($custoEstimadoIA, 2, ',', '.') ?></div>
         </div>
       </div>
     </div>

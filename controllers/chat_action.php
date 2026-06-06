@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/GeminiService.php';
+require_once __DIR__ . '/../classes/TokenManager.php';
 exigirLogin('../login.php');
 header('Content-Type: application/json');
 
@@ -15,17 +16,13 @@ if (empty($pergunta)) {
 
 $db = getDB();
 
-// 1. Validar Economia de Tokens / Plano
-$stmtU = $db->prepare("SELECT plano, token_saldo FROM usuarios WHERE id = ?");
-$stmtU->execute([$uid]);
-$user_data = $stmtU->fetch();
-
-if ($user_data['plano'] !== 'premium') {
-    if ($user_data['token_saldo'] <= 0) {
-        echo json_encode(['ok' => false, 'msg' => 'Você não possui tokens suficientes. Ative o Modo Guerra ou compre créditos.', 'paywall' => true]);
-        exit;
-    }
+// 1. Verificar saldo via TokenManager centralizado
+$check = TokenManager::verificar($uid, COST_IA_TIPS);
+if (!$check['pode']) {
+    echo json_encode(['ok' => false, 'msg' => $check['msg'], 'paywall' => true]);
+    exit;
 }
+$user_data = ['plano' => $check['plano']]; // compatibilidade com código abaixo
 
 // Buscar resumo do status do aluno via StudyPlanner
 require_once __DIR__ . '/../classes/StudyPlanner.php';
@@ -86,16 +83,10 @@ try {
 $db->prepare("INSERT INTO mensagens_chat (usuario_id, edital_id, papel, mensagem) VALUES (?,?,?,?)")
    ->execute([$uid, $editalId ?: null, 'model', $resposta]);
 
-// Debitar Token se for free
-if ($user_data['plano'] !== 'premium') {
-    $db->prepare("UPDATE usuarios SET token_saldo = token_saldo - 1 WHERE id = ?")->execute([$uid]);
-    
-    // Registrar transação de débito
-    $db->prepare("INSERT INTO token_transacoes (usuario_id, tipo, quantidade, descricao) VALUES (?, 'consumo', -1, 'Consulta ao Mentor IA')")
-       ->execute([$uid]);
-}
+// Debitar Token e registrar transação
+$resultado = TokenManager::consumir($uid, COST_IA_TIPS, 'Consulta ao Mentor IA');
 
-echo json_encode(['ok'=>true, 'resposta'=>$resposta, 'tokens_restantes' => ($user_data['plano'] === 'premium' ? '∞' : $user_data['token_saldo'] - 1)]);
+echo json_encode(['ok'=>true, 'resposta'=>$resposta, 'tokens_restantes' => $resultado['saldo_restante']]);
 } catch (\Exception $e) {
     echo json_encode(['ok'=>false, 'msg'=>'Erro ao processar: '.$e->getMessage()]);
 }

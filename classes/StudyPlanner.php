@@ -489,6 +489,24 @@ class StudyPlanner {
             $nivel = 'extremo';
             $msg = "RISCO EXTREMO: Você precisaria de " . round($horasPorDiaNecessarias, 1) . "h/dia. Ritmo atual insuficiente.";
             $cor = '#ef4444';
+
+            // Alerta de Risco por Email (1x ao dia)
+            $stCheck = $db->prepare("SELECT COUNT(*) FROM eventos_usuario WHERE usuario_id = ? AND evento = 'risco_extremo' AND DATE(criado_em) = CURDATE()");
+            $stCheck->execute([$usuarioId]);
+            if ($stCheck->fetchColumn() == 0) {
+                $this->registrarEvento($usuarioId, 'risco_extremo', json_encode(['ratio' => $ratio, 'horas' => $horasPorDiaNecessarias]));
+                
+                $stU = $db->prepare("SELECT email, nome FROM usuarios WHERE id = ?");
+                $stU->execute([$usuarioId]);
+                $usr = $stU->fetch();
+                if ($usr && !empty($usr['email'])) {
+                    $to = $usr['email'];
+                    $subject = "ALERTA CRÍTICO: Risco de Reprovação Detectado";
+                    $message = "Olá {$usr['nome']},\n\nO sistema detectou que o seu ritmo de estudos atual é insuficiente para cobrir o edital a tempo. Você precisaria de " . round($horasPorDiaNecessarias, 1) . "h/dia.\n\nAcesse o painel e ajuste sua rota agora!";
+                    $headers = "From: alertas@hackconcursos.com\r\n";
+                    @mail($to, $subject, $message, $headers);
+                }
+            }
         } elseif ($ratio > 1.5) {
             $nivel = 'alto';
             $msg = "RISCO ALTO: Seu edital está correndo mais rápido que você. Aumente a carga.";

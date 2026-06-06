@@ -5,11 +5,22 @@
  */
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/GeminiService.php';
+require_once __DIR__ . '/../classes/TokenManager.php';
 exigirLogin('../login.php');
 header('Content-Type: application/json');
 
 $uid = (int)$_SESSION['usuario_id'];
 $action = $_GET['action'] ?? '';
+
+// Verificar CSRF em todas as requisições POST (FIX M3)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $headers = function_exists('getallheaders') ? getallheaders() : [];
+    $csrfToken = $headers['X-CSRF-Token'] ?? $headers['x-csrf-token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!verificarCSRFToken($csrfToken)) {
+        echo json_encode(['ok' => false, 'msg' => 'Acesso negado: Token CSRF inválido ou expirado.']);
+        exit;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
     set_time_limit(300); // Dar 5 minutos para o processo todo
@@ -26,8 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
     try {
         $db = getDB();
         
-        // Verificação de limite para plano gratuito
-        if (($_SESSION['plano'] ?? 'free') === 'free') {
+        // 1. Verificar tokens/plano via TokenManager (FIX A9 + Token integration)
+        $check = TokenManager::verificar($uid, COST_IA_SIMULADO);
+        if (!$check['pode']) {
+            echo json_encode(['ok' => false, 'msg' => $check['msg'], 'paywall' => true]);
+            exit;
+        }
+
+        // Verificação de limite para plano gratuito (using fresh DB value from $check['plano'])
+        if ($check['plano'] === 'free') {
             $countQ = $db->prepare("SELECT COUNT(*) FROM simulados WHERE usuario_id = ?");
             $countQ->execute([$uid]);
             $count = $countQ->fetchColumn();
@@ -40,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
         $banca       = sanitize($body['banca'] ?? 'FGV');
         $dificuldade = sanitize($body['dificuldade'] ?? 'media');
 
-        // 1. Validar cargo ativo
+        // 2. Validar cargo ativo
         $cargoQ = $db->prepare("SELECT id FROM cargos WHERE edital_id IN (SELECT id FROM editais WHERE usuario_id = ?) AND selecionado = 1 LIMIT 1");
         $cargoQ->execute([$uid]);
         $cargoId = $cargoQ->fetchColumn();
@@ -73,19 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
             $topicos = $tq->fetchAll(PDO::FETCH_COLUMN);
 
             $numParaEsta = min($questoesPorDisciplina, $quantidade - $totalInseridas);
-            
+
             try {
-                // Passando banca e dificuldade para a IA
                 $questoesIA = $gemini->gerarQuestoes($nomeDisc, $topicos, $numParaEsta, $banca, $dificuldade);
-                
-                // DEBUG: Salvar resposta da IA para conferência
-                file_put_contents(__DIR__ . '/../debug_simulado.txt', "Disc: $nomeDisc\n" . print_r($questoesIA, true), FILE_APPEND);
-                
+
                 // VERIFICAÇÃO DE CONEXÃO (Anti-Timeout)
                 try {
                     $db->query("SELECT 1");
                 } catch (Exception $e) {
-                    $db = getDB(); // Tenta pegar uma nova conexão (precisamos limpar o static no getDB)
+                    $db = getDB();
                 }
 
                 $insQ = $db->prepare("
@@ -95,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
 
                 foreach ($questoesIA as $qData) {
                     if ($totalInseridas >= $quantidade) break;
-                    
+
                     $saved = $insQ->execute([
                         $simuladoId,
                         $dId,
@@ -108,17 +122,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
                         strtoupper($qData['gabarito'] ?? ''),
                         $qData['explicacao'] ?? null
                     ]);
-                    
+
                     if ($saved) {
                         $totalInseridas++;
                     } else {
-                        // Log de erro de inserção se falhar
-                        $err = $insQ->errorInfo();
-                        file_put_contents(__DIR__ . '/../debug_simulado.txt', "Erro INSERT: " . print_r($err, true), FILE_APPEND);
+                        error_log('simulado_action INSERT falhou para questão de ' . $nomeDisc);
                     }
                 }
             } catch (\Exception $e) {
-                file_put_contents(__DIR__ . '/../debug_simulado.txt', "Erro Loop: " . $e->getMessage(), FILE_APPEND);
+                error_log('simulado_action gerarQuestoes: ' . $e->getMessage());
                 continue;
             }
         }
@@ -132,6 +144,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'gerar') {
             echo json_encode(['ok' => false, 'msg' => 'Falha ao gerar questões com a IA. Tente novamente em alguns segundos.']);
             exit;
         }
+
+        // 5. Debitar tokens (só depois de ter resultado com sucesso - FIX A3)
+        TokenManager::consumirOuFalhar($uid, COST_IA_SIMULADO, 'Geração de Simulado IA');
 
         echo json_encode(['ok' => true, 'simulado_id' => $simuladoId]);
 
@@ -155,9 +170,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder') {
     try {
         $db = getDB();
         
-        // Buscar gabarito
-        $qQ = $db->prepare("SELECT gabarito FROM questoes WHERE id = ? AND simulado_id = ?");
-        $qQ->execute([$questaoId, $simuladoId]);
+        // Buscar gabarito e verificar ownership do simulado para evitar IDOR (A1)
+        $qQ = $db->prepare("
+            SELECT q.gabarito 
+            FROM questoes q
+            JOIN simulados s ON s.id = q.simulado_id
+            WHERE q.id = ? AND q.simulado_id = ? AND s.usuario_id = ?
+        ");
+        $qQ->execute([$questaoId, $simuladoId, $uid]);
         $gabarito = $qQ->fetchColumn();
 
         if (!$gabarito) {
@@ -167,13 +187,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder') {
 
         $correta = ($resposta === $gabarito) ? 1 : 0;
 
+        $posQ = $db->prepare("SELECT COUNT(*) FROM respostas_usuario WHERE simulado_id = ? AND usuario_id = ? AND questao_id != ?");
+        $posQ->execute([$simuladoId, $uid, $questaoId]);
+        $posicao_questao = (int)$posQ->fetchColumn() + 1;
+
         // Salvar ou atualizar resposta
         $insRes = $db->prepare("
-            INSERT INTO respostas_usuario (simulado_id, questao_id, usuario_id, resposta, correta)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO respostas_usuario (simulado_id, questao_id, usuario_id, resposta, correta, posicao_questao)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE resposta = VALUES(resposta), correta = VALUES(correta), respondida_em = CURRENT_TIMESTAMP
         ");
-        $insRes->execute([$simuladoId, $questaoId, $uid, $resposta, $correta]);
+        $insRes->execute([$simuladoId, $questaoId, $uid, $resposta, $correta, $posicao_questao]);
 
         echo json_encode(['ok' => true, 'correta' => (bool)$correta, 'gabarito' => $gabarito]);
 

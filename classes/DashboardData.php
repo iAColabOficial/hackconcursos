@@ -68,25 +68,71 @@ class DashboardData {
         // 5. Risco de Reprovação (Lógica: baixa cobertura + baixa taxa = alto risco)
         $metrics['risco'] = $this->calculateRisco($metrics['cobertura'], $metrics['taxa_acerto']);
 
-        // 6. Missão Atual
+        // 6. Missão Atual (Inteligência: Score = Peso × (1 + TaxaErro) × (1 + DiasDescanso/7))
         $stmt = $this->db->prepare("
-            SELECT t.*, d.nome as disciplina_nome 
+            SELECT 
+                t.*, 
+                d.nome as disciplina_nome,
+                (
+                    IFNULL(d.peso, 1.0) * 
+                    (1 + IFNULL((SELECT 1 - (SUM(r.correta)/COUNT(r.id)) FROM respostas_usuario r JOIN questoes q ON r.questao_id = q.id WHERE q.disciplina_id = d.id AND r.usuario_id = p.usuario_id), 1.0)) * 
+                    (1 + IFNULL(DATEDIFF(CURRENT_DATE, (SELECT MAX(t2.concluida_em) FROM tarefas_estudo t2 WHERE t2.disciplina_id = d.id AND t2.plano_id = p.id AND t2.concluida = 1)), 7) / 7)
+                ) as hack_score
             FROM tarefas_estudo t 
             JOIN disciplinas d ON t.disciplina_id = d.id
             JOIN planos_estudo p ON t.plano_id = p.id
             WHERE p.usuario_id = ? AND t.concluida = 0 AND p.ativo = 1
-            ORDER BY t.data_prevista ASC, t.id ASC LIMIT 2
+            ORDER BY hack_score DESC, t.data_prevista ASC 
+            LIMIT 2
         ");
         $stmt->execute([$this->usuarioId]);
         $missoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $metrics['missao'] = $missoes[0] ?? null;
         $metrics['proxima_missao'] = $missoes[1] ?? null;
 
+        if ($metrics['missao']) {
+            $stD = $this->db->prepare("SELECT SUM(correta)/COUNT(id) FROM respostas_usuario r JOIN questoes q ON r.questao_id=q.id WHERE q.disciplina_id=? AND r.usuario_id=?");
+            $stD->execute([$metrics['missao']['disciplina_id'], $this->usuarioId]);
+            $dom = $stD->fetchColumn();
+            $metrics['missao']['dominio'] = $dom !== null ? round($dom * 100) : 0;
+        }
+
         // 7. Probabilidade de Aprovação (Simulação baseada em Cobertura e Taxa)
         $metrics['probabilidade'] = round(($metrics['cobertura'] * 0.3) + ($metrics['taxa_acerto'] * 0.7));
 
         // 8. Melhoria de Desempenho (Comparação simples)
         $metrics['melhoria'] = $metrics['taxa_acerto'] > 0 ? round($metrics['taxa_acerto'] * 0.2, 1) : 0; // Heurística para MVP
+
+        // 9. Desafio Semanal Dinâmico
+        if ($metrics['fraca']['nome'] !== '---') {
+            $stD = $this->db->prepare("SELECT id FROM disciplinas WHERE nome = ? LIMIT 1");
+            $stD->execute([$metrics['fraca']['nome']]);
+            $d_id = $stD->fetchColumn();
+            if ($d_id) {
+                $stProg = $this->db->prepare("
+                    SELECT SUM(r.correta) 
+                    FROM respostas_usuario r 
+                    JOIN questoes q ON r.questao_id=q.id 
+                    WHERE q.disciplina_id=? AND r.usuario_id=? AND YEARWEEK(r.respondida_em, 1) = YEARWEEK(CURRENT_DATE, 1)
+                ");
+                $stProg->execute([$d_id, $this->usuarioId]);
+                $progresso = (int)$stProg->fetchColumn();
+                $metrics['desafio'] = [
+                    'titulo' => "Acerte 50 questões de {$metrics['fraca']['nome']} até Domingo.",
+                    'meta' => 50,
+                    'progresso' => $progresso,
+                    'percentual' => min(100, round(($progresso/50)*100))
+                ];
+            }
+        }
+        if (!isset($metrics['desafio'])) {
+            $metrics['desafio'] = [
+                'titulo' => "Responda mais questões para gerar um desafio.",
+                'meta' => 10,
+                'progresso' => 0,
+                'percentual' => 0
+            ];
+        }
 
         return $metrics;
     }

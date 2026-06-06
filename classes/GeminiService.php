@@ -49,7 +49,7 @@ TEXTO DO EDITAL:
 PROMPT;
 
         $prompt = str_replace('{texto}', mb_substr($textoEdital, 0, 30000), $prompt);
-        $resposta = $this->chamarAPI($prompt);
+        $resposta = $this->chamarAPI($prompt, [], '', true);
 
         // Extrator Robusto: Localiza o JSON real ignorando qualquer texto extra da IA
         $inicio = strpos($resposta, '{');
@@ -135,6 +135,7 @@ REQUISITO DE SAÍDA:
 Retorne APENAS um JSON válido no seguinte formato:
 [
   {
+    "step_by_step_reasoning": "Seu raciocínio analítico passo-a-passo (anti-alucinação) antes de definir o gabarito final...",
     "enunciado": "Texto da questão...",
     "alternativa_a": "...",
     "alternativa_b": "...",
@@ -147,7 +148,7 @@ Retorne APENAS um JSON válido no seguinte formato:
 ]
 PROMPT;
 
-        $resposta = $this->chamarAPI($prompt);
+        $resposta = $this->chamarAPI($prompt, [], '', true);
         
         // Extrator Robusto: Localiza o início e fim do array JSON ignorando ruídos
         $inicio = strpos($resposta, '[');
@@ -192,7 +193,7 @@ Retorne APENAS um JSON com o array de nomes das disciplinas na nova ordem de pri
 Exemplo: ["Matéria A", "Matéria B", ...]
 PROMPT;
 
-        $resposta = $this->chamarAPI($prompt);
+        $resposta = $this->chamarAPI($prompt, [], '', true);
         $inicio = strpos($resposta, '[');
         $fim    = strrpos($resposta, ']');
         if ($inicio !== false && $fim !== false) {
@@ -205,7 +206,7 @@ PROMPT;
     /**
      * Chama a API do Gemini (geração de texto simples ou com histórico).
      */
-    private function chamarAPI(string $prompt = '', array $contents = [], string $systemInstruction = ''): string {
+    private function chamarAPI(string $prompt = '', array $contents = [], string $systemInstruction = '', bool $forceJson = false): string {
         if (empty($this->apiKey) || $this->apiKey === 'SUA_CHAVE_AQUI') {
             throw new \Exception('API Key do Gemini não configurada. Acesse config/config.php.');
         }
@@ -224,6 +225,10 @@ PROMPT;
                 'maxOutputTokens' => 8192,
             ]
         ];
+
+        if ($forceJson) {
+            $payload['generationConfig']['responseMimeType'] = 'application/json';
+        }
 
         // Adicionar instrução de sistema se fornecida
         if (!empty($systemInstruction)) {
@@ -264,5 +269,12 @@ PROMPT;
         }
 
         return $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    }
+
+    /**
+     * Gera texto simples a partir de um prompt — uso genérico (ex: refinamento de plano).
+     */
+    public function gerarTextoSimples(string $prompt): string {
+        return $this->chamarAPI($prompt);
     }
 }

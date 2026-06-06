@@ -288,7 +288,10 @@ document.getElementById('form-novo-simulado').addEventListener('submit', async f
     try {
         const response = await fetch('<?= APP_URL ?>/controllers/simulado_action.php?action=gerar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.csrfToken || ''
+            },
             body: JSON.stringify(data)
         });
         

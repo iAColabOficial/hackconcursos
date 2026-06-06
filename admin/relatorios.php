@@ -1,24 +1,25 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
-exigirLogin('../public/login.php');
-
-if (($_SESSION['perfil'] ?? '') !== 'admin') {
-    flashMsg('danger', 'Acesso negado.');
-    redirect('../aluno/dashboard.php');
-}
+exigirAdmin('../login.php');
 
 $db = getDB();
 
-// Métricas de Vendas (Mock + DB)
+// Métricas de Vendas Reais
 $vendasMes = $db->query("SELECT SUM(total) FROM pedidos WHERE status = 'pago' AND MONTH(criado_em) = MONTH(CURRENT_DATE)")->fetchColumn() ?? 0;
-$conversao = 3.2; // % mock
 
-// Rankings
+$totalAlunos = (int)$db->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'aluno'")->fetchColumn();
+$alunosPremium = (int)$db->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'aluno' AND plano != 'free'")->fetchColumn();
+$conversao = $totalAlunos > 0 ? round(($alunosPremium / $totalAlunos) * 100, 1) : 0;
+
+// Rankings (com aproveitamento real - fallback para 70% se não houver dados)
 $rankDisc = $db->query("
-    SELECT d.nome, COUNT(t.id) as total_tarefas
+    SELECT d.nome, COUNT(DISTINCT t.id) as total_tarefas,
+           COALESCE(ROUND(SUM(r.correta) / NULLIF(COUNT(r.id), 0) * 100), 70) as aproveitamento
     FROM disciplinas d
     JOIN tarefas_estudo t ON t.disciplina_id = d.id
-    GROUP BY d.nome
+    LEFT JOIN questoes q ON q.disciplina_id = d.id
+    LEFT JOIN respostas_usuario r ON r.questao_id = q.id
+    GROUP BY d.id, d.nome
     ORDER BY total_tarefas DESC
     LIMIT 5
 ")->fetchAll();
@@ -74,24 +75,24 @@ require_once __DIR__ . '/../includes/header.php';
                 <div style="display:flex; flex-direction:column; gap:1rem;">
                     <div>
                         <div class="d-flex jc-between mb-xs">
-                            <span style="font-size:0.85rem;">Visitantes</span>
-                            <span class="fw-700">12.450</span>
+                            <span style="font-size:0.85rem;">Total de Alunos (Leads)</span>
+                            <span class="fw-700"><?= $totalAlunos ?></span>
                         </div>
                         <div class="progress-hc"><div class="progress-bar-fill progress-blue" style="width:100%;"></div></div>
                     </div>
                     <div>
                         <div class="d-flex jc-between mb-xs">
-                            <span style="font-size:0.85rem;">Cadastros (Lead)</span>
-                            <span class="fw-700">2.140</span>
+                            <span style="font-size:0.85rem;">Alunos Premium (Venda)</span>
+                            <span class="fw-700"><?= $alunosPremium ?></span>
                         </div>
-                        <div class="progress-hc"><div class="progress-bar-fill progress-purple" style="width:17%;"></div></div>
+                        <div class="progress-hc"><div class="progress-bar-fill progress-purple" style="width: <?= $totalAlunos > 0 ? round(($alunosPremium / $totalAlunos) * 100) : 0 ?>%;"></div></div>
                     </div>
                     <div>
                         <div class="d-flex jc-between mb-xs">
-                            <span style="font-size:0.85rem;">Assinantes (Venda)</span>
-                            <span class="fw-700">68</span>
+                            <span style="font-size:0.85rem;">Taxa de Conversão</span>
+                            <span class="fw-700"><?= $conversao ?>%</span>
                         </div>
-                        <div class="progress-hc"><div class="progress-bar-fill" style="width:3%;"></div></div>
+                        <div class="progress-hc"><div class="progress-bar-fill progress-neon" style="width: <?= min(100, round($conversao)) ?>%;"></div></div>
                     </div>
                 </div>
             </div>
@@ -119,7 +120,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <tr>
                                 <td class="fw-700"><?= sanitize($r['nome']) ?></td>
                                 <td><?= $r['total_tarefas'] ?></td>
-                                <td><span class="text-neon fw-700"><?= rand(65, 88) ?>%</span></td>
+                                <td><span class="text-neon fw-700"><?= (int)$r['aproveitamento'] ?>%</span></td>
                             </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>

@@ -173,7 +173,7 @@ include __DIR__ . '/../includes/header_aluno.php';
                                         <h2 class="fw-800 mb-xs"><?= $m['missao']['titulo'] ?></h2>
                                         <p class="text-secondary mb-md">
                                             <i class="fas fa-info-circle"></i> 
-                                            Análise: <strong>Tópico Prioritário</strong>. Seu domínio atual é de <strong>55%</strong>.
+                                            Análise: <strong>Tópico Prioritário</strong>. Seu domínio atual é de <strong><?= $m['missao']['dominio'] ?? 0 ?>%</strong>.
                                         </p>
                                         <div class="d-flex gap-lg">
                                             <div class="hud-item">
@@ -242,14 +242,14 @@ include __DIR__ . '/../includes/header_aluno.php';
 
                     <div class="card-glass p-4 mb-md">
                         <h5 class="fw-800 mb-sm"><i class="fas fa-trophy text-warning"></i> Desafio Semanal</h5>
-                        <p class="text-secondary" style="font-size: 0.85rem;">Acerte 200 questões de Direito Administrativo até Domingo.</p>
+                        <p class="text-secondary" style="font-size: 0.85rem;"><?= $m['desafio']['titulo'] ?></p>
                         <div class="mt-md">
                             <div class="d-flex jc-between mb-xs">
                                 <span style="font-size: 0.75rem;">Progresso</span>
-                                <span style="font-size: 0.75rem;">45/200</span>
+                                <span style="font-size: 0.75rem;"><?= $m['desafio']['progresso'] ?>/<?= $m['desafio']['meta'] ?></span>
                             </div>
                             <div class="progress-hc">
-                                <div class="progress-bar-fill" style="width: 22%;"></div>
+                                <div class="progress-bar-fill" style="width: <?= $m['desafio']['percentual'] ?>%;"></div>
                             </div>
                         </div>
                     </div>
